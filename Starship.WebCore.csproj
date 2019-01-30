@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MediaTypeMap.Core" Version="2.3.3" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.1.1" />
+    <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.2.1" />
+    <PackageReference Include="Microsoft.Azure.Storage.File" Version="9.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Starship.Azure\Starship.Azure.csproj" />
+    <ProjectReference Include="..\Starship.Core\Starship.Core.csproj" />
+    <ProjectReference Include="..\Starship.Web\Starship.Web.csproj" />
+  </ItemGroup>
+
+</Project>
