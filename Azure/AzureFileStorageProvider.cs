@@ -12,6 +12,7 @@ namespace Starship.WebCore.Azure {
     public class AzureFileStorageProvider : IsFileStorageProvider {
 
         public AzureFileStorageProvider(AzureFileStorageSettings settings) {
+            Settings = settings;
             Client = CloudStorageAccount.Parse(settings.ConnectionString).CreateCloudFileClient();
         }
 

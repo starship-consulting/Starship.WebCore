@@ -27,14 +27,14 @@ namespace Starship.WebCore.Controllers {
             Provider = provider;
         }
         
-        [HttpGet, Route("data")]
+        [HttpGet, Route("api/data")]
         public IActionResult Get() {
             var user = this.GetUser();
             var results = Provider.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == user.Id).Select(each => each.Type).Distinct().ToList();
             return Ok(results);
         }
         
-        [HttpGet, Route("data/{type}")]
+        [HttpGet, Route("api/data/{type}")]
         public async Task<IActionResult> Get([FromRoute] string type, [FromQuery] DataQueryParameters parameters) {
             var top = 0;
 
@@ -46,7 +46,7 @@ namespace Starship.WebCore.Controllers {
             return BuildJsonResult(results);
         }
 
-        [HttpGet, Route("data/{type}/{id}")]
+        [HttpGet, Route("api/data/{type}/{id}")]
         public IActionResult Find([FromRoute] string type, [FromRoute] string id) {
 
             var user = this.GetUser();
@@ -59,7 +59,7 @@ namespace Starship.WebCore.Controllers {
             return BuildJsonResult(entity);
         }
         
-        [HttpDelete, Route("data/{type}/{id}")]
+        [HttpDelete, Route("api/data/{type}/{id}")]
         public async Task<IActionResult> Delete([FromRoute] string type, [FromRoute] string id) {
 
             var user = this.GetUser();
@@ -75,7 +75,7 @@ namespace Starship.WebCore.Controllers {
             return Ok(new { id });
         }
 
-        [HttpDelete, Route("data/{type}")]
+        [HttpDelete, Route("api/data/{type}")]
         public async Task<IActionResult> DeleteAll([FromRoute] string type) {
 
             var user = this.GetUser();
@@ -89,7 +89,7 @@ namespace Starship.WebCore.Controllers {
             return Ok(true);
         }
 
-        [HttpDelete, Route("data")]
+        [HttpDelete, Route("api/data")]
         public async Task<IActionResult> Delete([FromBody] string[] ids) {
 
             var user = this.GetUser();
@@ -109,7 +109,7 @@ namespace Starship.WebCore.Controllers {
             return Ok(true);
         }
         
-        [HttpPost, Route("data")]
+        [HttpPost, Route("api/data")]
         public async Task<IActionResult> Save([FromBody] ExpandoObject[] entities) {
 
             var user = this.GetUser();
@@ -135,7 +135,7 @@ namespace Starship.WebCore.Controllers {
             return BuildJsonResult(result);
         }
 
-        [HttpPost, Route("data/{type}")]
+        [HttpPost, Route("api/data/{type}")]
         public async Task<IActionResult> Save([FromRoute] string type, [FromBody] ExpandoObject entity) {
             
             var user = this.GetUser();
