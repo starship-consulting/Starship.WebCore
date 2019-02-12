@@ -10,9 +10,9 @@ using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Storage;
 using Starship.Web.Security;
+using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
-using Starship.WebCore.Security;
 
 namespace Starship.WebCore.Extensions {
     public static class ServiceExtensions {
@@ -39,9 +39,14 @@ namespace Starship.WebCore.Extensions {
             services.AddSingleton<IsFileStorageProvider>(provider);
         }
 
-        public static void UseAuth0(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
+        public static void UseAuth0Cookies(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
             var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
-            services.AddAuth0Authentication(settings.Domain, settings.ClientId, settings.ClientSecret, onAuthenticated);
+            services.AddAuth0CookieAuthentication(settings, onAuthenticated);
+        }
+
+        public static void UseAuth0Bearer(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
+            var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
+            services.AddAuth0BearerAuthentication(settings, onAuthenticated);
         }
 
         public static void UseCompression(this IServiceCollection services) {

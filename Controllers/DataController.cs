@@ -35,12 +35,12 @@ namespace Starship.WebCore.Controllers {
         }
         
         [HttpGet, Route("api/data/{type}")]
-        public async Task<IActionResult> Get([FromRoute] string type, [FromQuery] DataQueryParameters parameters) {
+        public IActionResult Get([FromRoute] string type, [FromQuery] DataQueryParameters parameters) {
             var top = 0;
 
             var user = this.GetUser();
 
-            var query = await GetData(user, type, parameters);
+            var query = GetData(user, type, parameters);
             var results = query.ToArray();
             
             return BuildJsonResult(results);
@@ -80,7 +80,7 @@ namespace Starship.WebCore.Controllers {
 
             var user = this.GetUser();
 
-            var items = await GetData(user, type);
+            var items = GetData(user, type);
 
             foreach(var item in items) {
                 await Provider.DefaultCollection.DeleteAsync(item.Id);
@@ -217,7 +217,7 @@ namespace Starship.WebCore.Controllers {
             return new JsonResult(data, Provider.Settings.SerializerSettings);
         }
         
-        private async Task<IEnumerable<Document>> GetData(UserProfile user, string type, DataQueryParameters parameters = null) {
+        private IEnumerable<Document> GetData(UserProfile user, string type, DataQueryParameters parameters = null) {
             
             if(parameters == null) {
                 parameters = new DataQueryParameters();
