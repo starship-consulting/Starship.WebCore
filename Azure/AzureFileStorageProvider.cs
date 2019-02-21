@@ -158,25 +158,16 @@ namespace Starship.WebCore.Azure {
 
             var currentDirectory = GetShare(partition);
 
-            if(!string.IsNullOrEmpty(path)) {
-            
-                var index = 0;
-                var segments = path.Split('/');
-            
-                foreach(var each in segments) {
-                    index += 1;
-
-                    if(index == segments.Length) {
-                        var files = currentDirectory.ListFilesAndDirectories().ToList();
-                        var match = files.FirstOrDefault(file => file.Uri.LocalPath.EndsWith(path, StringComparison.InvariantCultureIgnoreCase));
-                        return match;
-                    }
-
-                    currentDirectory = currentDirectory.GetDirectoryReference(each);
-                }
+            if(string.IsNullOrEmpty(path)) {
+                return currentDirectory;
             }
-
-            return currentDirectory;
+            
+            if(path.Contains("/")) {
+                var directory = path.Substring(0, path.LastIndexOf("/", StringComparison.Ordinal));
+                currentDirectory = currentDirectory.GetDirectoryReference(directory);
+            }
+            
+            return currentDirectory.ListFilesAndDirectories().FirstOrDefault(file => file.Uri.LocalPath.EndsWith(path, StringComparison.InvariantCultureIgnoreCase));
         }
 
         public void CreateDirectories(string partition, string path) {
@@ -218,6 +209,10 @@ namespace Starship.WebCore.Azure {
 
                 return Shares[partition].GetRootDirectoryReference();
             }
+        }
+
+        public string GetDefaultPartitionName() {
+            return Settings.DefaultPartitionName;
         }
 
         /*public async Task<FileReference> UploadAsync(string partition, Stream stream, string path) {

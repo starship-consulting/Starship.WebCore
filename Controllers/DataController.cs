@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Community.OData.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Documents;
@@ -57,6 +58,31 @@ namespace Starship.WebCore.Controllers {
             }
             
             return BuildJsonResult(entity);
+        }
+
+        [HttpGet, Route("api/data/{type}/{id}/events")]
+        public IActionResult GetEvents([FromRoute] string type, [FromRoute] string id) {
+
+            var user = this.GetUser();
+            var entity = Provider.DefaultCollection.Find<CosmosDocument>(id);
+
+            if(entity == null || !HasPermission(user, entity)) {
+                return StatusCode(404);
+            }
+
+            var events = Provider.DefaultCollection.Get<CosmosEvent>()
+                .Where(each => each.Type == "event" && each.Source.Id == id && each.Source.Type == type)
+                .Select(each => new {
+                    id = each.Id,
+                    creationDate = each.CreationDate,
+                    name = each.Name,
+                    parameters = each.Parameters,
+                    owner = each.Owner
+                })
+                .OrderBy(each => each.creationDate)
+                .ToArray();
+            
+            return BuildJsonResult(events);
         }
         
         [HttpDelete, Route("api/data/{type}/{id}")]
@@ -212,7 +238,7 @@ namespace Starship.WebCore.Controllers {
             return new JsonResult(data, Provider.Settings.SerializerSettings);
         }
 
-        private IActionResult BuildJsonResult(IEnumerable<Document> documents) {
+        private IActionResult BuildJsonResult(IEnumerable<object> documents) {
             var data = documents.Select(each => JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(each)));
             return new JsonResult(data, Provider.Settings.SerializerSettings);
         }
@@ -229,9 +255,11 @@ namespace Starship.WebCore.Controllers {
             // Todo:  Cache claim in user identity or sproc could manage entire query
             var claims = claimsQuery.Where(each => each.Type == "claim" && each.Owner == user.Id && each.Status == 1).Select(each => each.Value);
             
-            var query = entityQuery
-                .Where(each => each.Type == type)
-                .Where(each => each.Owner == Provider.Settings.SystemOwnerName || each.Owner == user.Id || claims.Contains(each.Owner));
+            var query = entityQuery.Where(each => each.Type == type);
+
+            if(UseSecurity) {
+                query = query.Where(each => each.Owner == Provider.Settings.SystemOwnerName || each.Owner == user.Id || claims.Contains(each.Owner));
+            }
 
             if(parameters.IncludeInvalidated == null) {
                 query = query.Where(each => !each.ValidUntil.IsDefined() || each.ValidUntil == null || each.ValidUntil > DateTime.UtcNow);
@@ -240,12 +268,18 @@ namespace Starship.WebCore.Controllers {
                 query = query.Where(each => !each.ValidUntil.IsDefined() || each.ValidUntil == null || each.ValidUntil > parameters.IncludeInvalidated);
             }
             
+            if(!string.IsNullOrEmpty(parameters.Filter)) {
+                return query.OData().Filter(parameters.Filter).ToList();
+            }
+
             return query.ToList();
         }
         
         private bool HasPermission(UserProfile user, CosmosDocument entity) {
             return entity.Id == user.Id || entity.Owner == user.Id || entity.Owner == Provider.Settings.SystemOwnerName;
         }
+
+        public static bool UseSecurity = true;
 
         private readonly AzureDocumentDbProvider Provider;
     }

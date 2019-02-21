@@ -2,6 +2,7 @@
 using System.IO.Compression;
 using System.Linq;
 using System.Security.Claims;
+using ChargeBee.Api;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,7 @@ using Starship.Web.Security;
 using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
+using Starship.WebCore.Providers.ChargeBee;
 
 namespace Starship.WebCore.Extensions {
     public static class ServiceExtensions {
@@ -47,6 +49,11 @@ namespace Starship.WebCore.Extensions {
         public static void UseAuth0Bearer(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
             var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
             services.AddAuth0BearerAuthentication(settings, onAuthenticated);
+        }
+
+        public static void UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
+            ApiConfig.Configure(settings.Site, settings.Key);
         }
 
         public static void UseCompression(this IServiceCollection services) {
