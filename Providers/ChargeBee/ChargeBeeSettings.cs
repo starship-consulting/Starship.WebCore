@@ -6,5 +6,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
         public string Site { get; set; }
 
         public string Key { get; set; }
+
+        public string DefaultSubscriptionId { get; set; }
     }
 }

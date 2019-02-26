@@ -42,9 +42,7 @@ namespace Starship.WebCore.Controllers {
             var user = this.GetUser();
 
             var query = GetData(user, type, parameters);
-            var results = query.ToArray();
-            
-            return BuildJsonResult(results);
+            return query.ToArray().ToJsonResult(Provider.Settings.SerializerSettings);
         }
 
         [HttpGet, Route("api/data/{type}/{id}")]
@@ -57,7 +55,7 @@ namespace Starship.WebCore.Controllers {
                 return StatusCode(404);
             }
             
-            return BuildJsonResult(entity);
+            return entity.ToJsonResult(Provider.Settings.SerializerSettings);
         }
 
         [HttpGet, Route("api/data/{type}/{id}/events")]
@@ -82,7 +80,7 @@ namespace Starship.WebCore.Controllers {
                 .OrderBy(each => each.creationDate)
                 .ToArray();
             
-            return BuildJsonResult(events);
+            return events.ToJsonResult(Provider.Settings.SerializerSettings);
         }
         
         [HttpDelete, Route("api/data/{type}/{id}")]
@@ -158,7 +156,7 @@ namespace Starship.WebCore.Controllers {
             }
 
             var result = await Provider.DefaultCollection.CallProcedure<Document>(Provider.Settings.SaveProcedureName, resources);
-            return BuildJsonResult(result);
+            return result.ToJsonResult(Provider.Settings.SerializerSettings);
         }
 
         [HttpPost, Route("api/data/{type}")]
@@ -178,7 +176,7 @@ namespace Starship.WebCore.Controllers {
             }
 
             var result = await Provider.DefaultCollection.SaveAsync(document);
-            return BuildJsonResult(result);
+            return result.ToJsonResult(Provider.Settings.SerializerSettings);
         }
         
         private Document TryGetDocument(UserProfile user, ExpandoObject source, string defaultType = "") {
@@ -231,16 +229,6 @@ namespace Starship.WebCore.Controllers {
             }
 
             return true;
-        }
-
-        private IActionResult BuildJsonResult(Resource resource) {
-            var data = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(resource));
-            return new JsonResult(data, Provider.Settings.SerializerSettings);
-        }
-
-        private IActionResult BuildJsonResult(IEnumerable<object> documents) {
-            var data = documents.Select(each => JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(each)));
-            return new JsonResult(data, Provider.Settings.SerializerSettings);
         }
         
         private IEnumerable<Document> GetData(UserProfile user, string type, DataQueryParameters parameters = null) {

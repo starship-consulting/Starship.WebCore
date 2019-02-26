@@ -51,9 +51,11 @@ namespace Starship.WebCore.Extensions {
             services.AddAuth0BearerAuthentication(settings, onAuthenticated);
         }
 
-        public static void UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
+        public static ChargeBeeProvider UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
-            ApiConfig.Configure(settings.Site, settings.Key);
+            var provider = new ChargeBeeProvider(settings);
+            services.AddSingleton(provider);
+            return provider;
         }
 
         public static void UseCompression(this IServiceCollection services) {
