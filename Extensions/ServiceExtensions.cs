@@ -2,7 +2,6 @@
 using System.IO.Compression;
 using System.Linq;
 using System.Security.Claims;
-using ChargeBee.Api;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;

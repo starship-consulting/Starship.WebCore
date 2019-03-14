@@ -4,11 +4,14 @@ using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Community.OData.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Documents;
+using Microsoft.Azure.Documents.ChangeFeedProcessor;
+using Microsoft.Azure.Documents.ChangeFeedProcessor.FeedProcessing;
 using Microsoft.Azure.Documents.SystemFunctions;
 using Newtonsoft.Json;
 using Starship.Azure.Data;
@@ -28,6 +31,11 @@ namespace Starship.WebCore.Controllers {
             Provider = provider;
         }
         
+        /*[HttpGet, Route("api/log")]
+        public async Task<IActionResult> Log() {
+            return Ok(await Provider.GetLog(DateTime.UtcNow.Subtract(TimeSpan.FromDays(3))));
+        }*/
+
         [HttpGet, Route("api/data")]
         public IActionResult Get() {
             var user = this.GetUser();
