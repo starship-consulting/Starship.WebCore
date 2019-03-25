@@ -14,9 +14,18 @@ using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Providers.ChargeBee;
+using Starship.WebCore.Providers.Interfaces;
+using Starship.WebCore.Providers.UserSettings;
 
 namespace Starship.WebCore.Extensions {
     public static class ServiceExtensions {
+
+        public static ClientSettingsProvider UseClientSettings(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<ClientSettings>(configuration);
+            var provider = new ClientSettingsProvider(settings);
+            services.AddSingleton<IsUserSettingsProvider, ClientSettingsProvider>(service => provider);
+            return provider;
+        }
 
         public static AzureDocumentDbProvider UseCosmosDb(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<CosmosDbSettings>(configuration);
@@ -53,7 +62,7 @@ namespace Starship.WebCore.Extensions {
         public static ChargeBeeProvider UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
             var provider = new ChargeBeeProvider(settings);
-            services.AddSingleton(provider);
+            services.AddSingleton<IsSubscriptionProvider, ChargeBeeProvider>(service => provider);
             return provider;
         }
 

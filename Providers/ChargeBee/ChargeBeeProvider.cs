@@ -5,15 +5,24 @@ using ChargeBee.Api;
 using ChargeBee.Exceptions;
 using ChargeBee.Models;
 using Newtonsoft.Json.Linq;
+using Starship.Azure.Data;
 using Starship.Web.Security;
+using Starship.WebCore.Providers.Interfaces;
 
 namespace Starship.WebCore.Providers.ChargeBee {
 
-    public class ChargeBeeProvider {
+    public class ChargeBeeProvider : IsSubscriptionProvider {
 
         public ChargeBeeProvider(ChargeBeeSettings settings) {
             Settings = settings;
             ApiConfig.Configure(settings.Site, settings.Key);
+        }
+
+        public void Apply(Account user) {
+            var customer = GetCustomer(user.Id);
+            var subscription = GetSubscription(customer);
+            user.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
+            user.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
         }
 
         public Subscription InitializeSubscription(UserProfile user) {
@@ -68,15 +77,28 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 firstName = user.Name.Split(" ").First();
                 lastName = user.Name.Split(" ").Skip(1).First();
             }
+
+            Customer customer = null;
+
+            try {
+                customer = Customer.Retrieve(user.Id).Request().Customer;
+            }
+            catch {
+
+            }
+
+            if(customer == null) {
+                customer = Customer.Create()
+                    .Id(user.Id)
+                    .FirstName(firstName)
+                    .LastName(lastName)
+                    .Email(user.Email)
+                    .Locale("en-US")
+                    .Request()
+                    .Customer;
+            }
             
-            return Customer.Create()
-                .Id(user.Id)
-                .FirstName(firstName)
-                .LastName(lastName)
-                .Email(user.Email)
-                .Locale("en-US")
-                .Request()
-                .Customer;
+            return customer;
         }
 
         public JToken CreateSessionToken(string customerId) {
