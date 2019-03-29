@@ -7,11 +7,10 @@ using ChargeBee.Models;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
 using Starship.Web.Security;
-using Starship.WebCore.Providers.Interfaces;
 
 namespace Starship.WebCore.Providers.ChargeBee {
 
-    public class ChargeBeeProvider : IsSubscriptionProvider {
+    public class ChargeBeeProvider : IsBillingProvider {
 
         public ChargeBeeProvider(ChargeBeeSettings settings) {
             Settings = settings;
@@ -101,7 +100,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
             return customer;
         }
 
-        public JToken CreateSessionToken(string customerId) {
+        public JToken GetSessionToken(string customerId) {
             var session = PortalSession.Create()
                 .CustomerId(customerId)
                 .Request();

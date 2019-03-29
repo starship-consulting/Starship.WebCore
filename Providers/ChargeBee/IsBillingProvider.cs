@@ -4,12 +4,12 @@ using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
 using Starship.Web.Security;
 
-namespace Starship.WebCore.Providers.Interfaces {
-    public interface IsSubscriptionProvider {
+namespace Starship.WebCore.Providers.ChargeBee {
+    public interface IsBillingProvider {
 
         Subscription InitializeSubscription(UserProfile user);
 
-        JToken CreateSessionToken(string customerId);
+        JToken GetSessionToken(string customerId);
 
         void Apply(Account user);
     }

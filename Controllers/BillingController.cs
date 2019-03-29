@@ -1,26 +1,29 @@
 ﻿using System;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Starship.WebCore.Extensions;
-using Starship.WebCore.Providers.Interfaces;
+using Starship.WebCore.Providers.Authentication;
+using Starship.WebCore.Providers.ChargeBee;
 
 namespace Starship.WebCore.Controllers {
 
     [Authorize]
     public class BillingController : ApiController {
 
-        public BillingController(IsSubscriptionProvider provider) {
-            Provider = provider;
+        public BillingController(IsBillingProvider billing, UserRepository users) {
+            Billing = billing;
+            Users = users;
         }
 
         [HttpGet, Route("api/billing")]
         public IActionResult Get() {
-            var user = this.GetUserProfile();
-            Provider.InitializeSubscription(user);
-            var session = Provider.CreateSessionToken(user.Id);
+            var user = Users.GetUserProfile();
+            Billing.InitializeSubscription(user);
+            var session = Billing.GetSessionToken(user.Id);
             return Ok(session);
         }
         
-        private readonly IsSubscriptionProvider Provider;
+        private readonly IsBillingProvider Billing;
+
+        private readonly UserRepository Users;
     }
 }

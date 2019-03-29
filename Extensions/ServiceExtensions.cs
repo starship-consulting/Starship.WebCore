@@ -9,26 +9,25 @@ using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Storage;
+using Starship.Data.Configuration;
+using Starship.Data.Interfaces;
 using Starship.Web.Security;
 using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Providers.ChargeBee;
-using Starship.WebCore.Providers.Interfaces;
-using Starship.WebCore.Providers.UserSettings;
 
-namespace Starship.WebCore.Extensions {
+// ReSharper disable once CheckNamespace
+namespace Microsoft.Extensions.DependencyInjection {
     public static class ServiceExtensions {
 
-        public static ClientSettingsProvider UseClientSettings(this IServiceCollection services, IConfiguration configuration) {
-            var settings = ConfigurationMapper.Map<ClientSettings>(configuration);
-            var provider = new ClientSettingsProvider(settings);
-            services.AddSingleton<IsUserSettingsProvider, ClientSettingsProvider>(service => provider);
-            return provider;
-        }
+        /*public static void AddUserRepository(this IServiceCollection services, IConfiguration configuration) {
+            //var settings = ConfigurationMapper.Map<ClientSettings>(configuration);
+            services.AddSingleton<UserRepository>();
+        }*/
 
         public static AzureDocumentDbProvider UseCosmosDb(this IServiceCollection services, IConfiguration configuration) {
-            var settings = ConfigurationMapper.Map<CosmosDbSettings>(configuration);
+            var settings = ConfigurationMapper.Map<DataSettings>(configuration);
             var provider = new AzureDocumentDbProvider(settings);
             services.AddSingleton(provider);
             return provider;
@@ -62,7 +61,7 @@ namespace Starship.WebCore.Extensions {
         public static ChargeBeeProvider UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
             var provider = new ChargeBeeProvider(settings);
-            services.AddSingleton<IsSubscriptionProvider, ChargeBeeProvider>(service => provider);
+            services.AddSingleton<IsBillingProvider, ChargeBeeProvider>(service => provider);
             return provider;
         }
 

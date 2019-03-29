@@ -7,14 +7,18 @@ using Microsoft.Azure.Documents;
 using Newtonsoft.Json;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Web.Security;
 
 namespace Starship.WebCore.Extensions {
     public static class CosmosDbExtensions {
 
-        public static Account GetAccount(this AzureDocumentDbProvider provider, ClaimsPrincipal principal) {
-            var profile = principal.GetUserProfile();
+        public static Account GetAccount(this AzureDocumentDbProvider data, UserProfile profile) {
             var email = profile.Email.ToLower();
-            return provider.DefaultCollection.Get<Account>().Where(each => each.Email.ToLower() == email).ToList().FirstOrDefault();
+            return data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();
+        }
+
+        public static Account GetAccount(this AzureDocumentDbProvider data, ClaimsPrincipal principal) {
+            return data.GetAccount(principal.GetUserProfile());
         }
 
         public static IActionResult ToJsonResult(this Resource resource, JsonSerializerSettings settings) {
