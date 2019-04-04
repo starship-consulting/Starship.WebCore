@@ -245,7 +245,7 @@ namespace Starship.WebCore.Controllers {
             var query = entityQuery.Where(each => each.Type == type);
 
             if(!string.IsNullOrEmpty(parameters.Partition)) {
-                query = query.Where(each => each.Owner == parameters.Partition);
+                query = query.Where(each => each.Owner == parameters.Partition || each.Owner == Data.Settings.SystemOwnerName);
             }
 
             if(!account.IsAdmin()) {
