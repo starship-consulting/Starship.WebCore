@@ -6,7 +6,6 @@ using ChargeBee.Exceptions;
 using ChargeBee.Models;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
-using Starship.Web.Security;
 
 namespace Starship.WebCore.Providers.ChargeBee {
 
@@ -17,25 +16,42 @@ namespace Starship.WebCore.Providers.ChargeBee {
             ApiConfig.Configure(settings.Site, settings.Key);
         }
 
-        public void Apply(Account user) {
-            var customer = GetCustomer(user.Id);
+        public void Apply(Account account) {
+
+            var customer = GetCustomer(account.ChargeBeeId);
             var subscription = GetSubscription(customer);
-            user.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
-            user.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
+            account.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
+            account.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
         }
 
-        public Subscription InitializeSubscription(UserProfile user) {
+        public Subscription InitializeSubscription(Account account) {
 
-            Customer customer;
+            Customer customer = null;
 
             try {
-                customer = CreateCustomer(user);
+                customer = GetCustomer(account);
             }
             catch(InvalidRequestException) {
-                customer = GetCustomer(user.Id);
+            }
+
+            if(customer == null) {
+                customer = CreateCustomer(account);
             }
             
+            if(string.IsNullOrEmpty(account.ChargeBeeId)) {
+                account.ChargeBeeId = customer.Id;
+            }
+
             return GetSubscription(customer);
+        }
+
+        private Customer GetCustomer(Account account) {
+
+            if(string.IsNullOrEmpty(account.ChargeBeeId)) {
+                return FindCustomerByEmail(account.Email);
+            }
+
+            return GetCustomer(account.ChargeBeeId);
         }
 
         private List<ListResult.Entry> HostedPages() {
@@ -67,37 +83,15 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .Subscription;
         }
 
-        public Customer CreateCustomer(UserProfile user) {
+        public Customer CreateCustomer(Account account) {
             
-            var firstName = user.Name;
-            var lastName = string.Empty;
-
-            if(user.Name.Contains(" ")) {
-                firstName = user.Name.Split(" ").First();
-                lastName = user.Name.Split(" ").Skip(1).First();
-            }
-
-            Customer customer = null;
-
-            try {
-                customer = Customer.Retrieve(user.Id).Request().Customer;
-            }
-            catch {
-
-            }
-
-            if(customer == null) {
-                customer = Customer.Create()
-                    .Id(user.Id)
-                    .FirstName(firstName)
-                    .LastName(lastName)
-                    .Email(user.Email)
-                    .Locale("en-US")
-                    .Request()
-                    .Customer;
-            }
-            
-            return customer;
+            return Customer.Create()
+                .FirstName(account.FirstName)
+                .LastName(account.LastName)
+                .Email(account.Email)
+                .Locale("en-US")
+                .Request()
+                .Customer;
         }
 
         public JToken GetSessionToken(string customerId) {
@@ -106,6 +100,16 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .Request();
 
             return session.PortalSession.GetJToken();
+        }
+
+        private Customer FindCustomerByEmail(string email) {
+            var result = Customer.List().Email().Is(email).Request().List.FirstOrDefault();
+
+            if(result != null && result.Customer != null) {
+                return result.Customer;
+            }
+
+            return null;
         }
 
         private JToken CreateCheckoutToken(Customer customer) {

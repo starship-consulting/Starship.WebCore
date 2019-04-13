@@ -2,7 +2,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Web.Security;
@@ -31,9 +30,11 @@ namespace Starship.WebCore.Providers.Authentication {
         }
 
         public Account GetAccount() {
-            var account = Data.GetAccount(GetUserProfile());
-            account.clientSettings = Settings;
-            return account;
+            return Data.GetAccount(GetUserProfile().Email);
+        }
+
+        public ClientSettings GetSettings() {
+            return Settings;
         }
         
         private ClaimsPrincipal Principal { get; set; }

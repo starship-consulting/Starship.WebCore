@@ -16,9 +16,9 @@ namespace Starship.WebCore.Controllers {
 
         [HttpGet, Route("api/billing")]
         public IActionResult Get() {
-            var user = Users.GetUserProfile();
-            Billing.InitializeSubscription(user);
-            var session = Billing.GetSessionToken(user.Id);
+            var account = Users.GetAccount();
+            Billing.InitializeSubscription(account);
+            var session = Billing.GetSessionToken(account.ChargeBeeId);
             return Ok(session);
         }
         

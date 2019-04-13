@@ -15,7 +15,9 @@ using Starship.Web.Security;
 using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
+using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.ChargeBee;
+using Starship.WebCore.Providers.Postmark;
 
 // ReSharper disable once CheckNamespace
 namespace Microsoft.Extensions.DependencyInjection {
@@ -62,6 +64,13 @@ namespace Microsoft.Extensions.DependencyInjection {
             var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
             var provider = new ChargeBeeProvider(settings);
             services.AddSingleton<IsBillingProvider, ChargeBeeProvider>(service => provider);
+            return provider;
+        }
+
+        public static PostmarkProvider UsePostmark(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<PostmarkSettings>(configuration);
+            var provider = new PostmarkProvider(settings);
+            services.AddSingleton<IsEmailProvider, PostmarkProvider>(service => provider);
             return provider;
         }
 

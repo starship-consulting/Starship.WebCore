@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Community.OData.Linq;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Documents;
@@ -15,6 +17,8 @@ using Starship.Azure.Data;
 using Starship.Azure.Json;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
+using Starship.Core.Security;
+using Starship.Data.Configuration;
 using Starship.Web.QueryModels;
 using Starship.WebCore.Extensions;
 using Starship.WebCore.Providers.Authentication;
@@ -33,6 +37,41 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Log() {
             return Ok(await Provider.GetLog(DateTime.UtcNow.Subtract(TimeSpan.FromDays(3))));
         }*/
+
+        /*[HttpGet, Route("api/test")]
+        public async Task<IActionResult> Test() {
+
+            var test = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == "google-oauth2|106287561953926890758").ToList().FirstOrDefault();
+            test.Owner = "test";
+
+            await Data.DefaultCollection.SaveAsync(test);
+
+            return null;
+        }*/
+
+        [HttpGet, Route("api/cleardata")]
+        public async Task ClearData() {
+
+            var account = GetAccount();
+            var documents = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == account.Id);
+            var timestamp = Convert.ToInt32(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
+
+            foreach(var document in documents) {
+                
+                if(document.Type == "account") {
+                    continue;
+                }
+
+                document.Owner += "-archived-" + timestamp;
+                await Data.DefaultCollection.SaveAsync(document);
+            }
+
+            await HttpContext.SignOutAsync("Auth0", new AuthenticationProperties {
+                RedirectUri = ""
+            });
+
+            await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        }
 
         [HttpGet, Route("api/data")]
         public IActionResult Get() {
@@ -54,46 +93,21 @@ namespace Starship.WebCore.Controllers {
             var account = GetAccount();
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || !HasPermission(account, entity)) {
+            if(entity == null || account.GetPermission(entity) == PermissionTypes.None) {
                 return StatusCode(404);
             }
             
             return entity.ToJsonResult(Data.Settings.SerializerSettings);
         }
-
-        [HttpGet, Route("api/data/{type}/{id}/events")]
-        public IActionResult GetEvents([FromRoute] string type, [FromRoute] string id) {
-
-            var account = GetAccount();
-            var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
-
-            if(entity == null || !HasPermission(account, entity)) {
-                return StatusCode(404);
-            }
-
-            var events = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Source.Id == id && each.Source.Type == type)
-                .Select(each => new {
-                    id = each.Id,
-                    creationDate = each.CreationDate,
-                    name = each.Name,
-                    parameters = each.Parameters,
-                    owner = each.Owner
-                })
-                .OrderBy(each => each.creationDate)
-                .ToArray();
-            
-            return events.ToJsonResult(Data.Settings.SerializerSettings);
-        }
         
         [HttpDelete, Route("api/data/{type}/{id}")]
         public async Task<IActionResult> Delete([FromRoute] string type, [FromRoute] string id) {
-
+            
             var account = GetAccount();
 
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || !HasPermission(account, entity)) {
+            if(entity == null || account.GetPermission(entity) <= PermissionTypes.Partial) {
                 return StatusCode(404);
             }
 
@@ -104,13 +118,19 @@ namespace Starship.WebCore.Controllers {
 
         [HttpDelete, Route("api/data/{type}")]
         public async Task<IActionResult> DeleteAll([FromRoute] string type) {
-
+            
             var account = GetAccount();
 
-            var items = GetData(account, type);
+            var documents = GetData(account, type).ToList();
 
-            foreach(var item in items) {
-                await Data.DefaultCollection.DeleteAsync(item.Id);
+            foreach(var document in documents) {
+                if(account.GetPermission(document) <= PermissionTypes.Partial) {
+                    return BadRequest();
+                }
+            }
+
+            foreach(var document in documents) {
+                await Data.DefaultCollection.DeleteAsync(document.Id);
             }
 
             return Ok(true);
@@ -118,13 +138,11 @@ namespace Starship.WebCore.Controllers {
 
         [HttpDelete, Route("api/data")]
         public async Task<IActionResult> Delete([FromBody] string[] ids) {
-
+            
             var account = GetAccount();
 
             foreach(var id in ids) {
-                var hasPermission = HasPermission(account, id);
-
-                if(!hasPermission) {
+                if(account.GetPermission(Data.DefaultCollection.Find<CosmosDocument>(id)) <= PermissionTypes.Partial) {
                     return StatusCode(404);
                 }
             }
@@ -143,9 +161,9 @@ namespace Starship.WebCore.Controllers {
             var resources = new List<Resource>();
 
             foreach(var entity in entities) {
-                var document = TryGetDocument(account, entity);
+                var document = TryGetResource(account, entity);
 
-                if(document == null) {
+                if(document == null || account.GetPermission(document) <= PermissionTypes.Partial) {
                     return StatusCode(404);
                 }
 
@@ -166,9 +184,9 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Save([FromRoute] string type, [FromBody] ExpandoObject entity) {
             
             var account = GetAccount();
-            var document = TryGetDocument(account, entity, type);
+            var document = TryGetResource(account, entity, type);
 
-            if(document == null) {
+            if(document == null || account.GetPermission(document) == PermissionTypes.None) {
                 return StatusCode(404);
             }
             
@@ -177,12 +195,12 @@ namespace Starship.WebCore.Controllers {
             if(owner.IsEmpty()) {
                 document.SetPropertyValue(Data.Settings.OwnerIdPropertyName, account.Id);
             }
-
+            
             var result = await Data.DefaultCollection.SaveAsync(document);
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }
         
-        private Document TryGetDocument(Account account, ExpandoObject source, string defaultType = "") {
+        private CosmosDocument TryGetResource(Account account, ExpandoObject source, string defaultType = "") {
 
             var settings = new JsonSerializerSettings {
                 ContractResolver = new DocumentContractResolver()
@@ -191,7 +209,7 @@ namespace Starship.WebCore.Controllers {
             var serialized = JsonConvert.SerializeObject(source, settings);
 
             using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
-                var entity = JsonSerializable.LoadFrom<Document>(stream);
+                var entity = JsonSerializable.LoadFrom<CosmosDocument>(stream);
                 var type = entity.GetPropertyValue<string>(Data.Settings.TypePropertyName);
 
                 if(type.IsEmpty()) {
@@ -202,18 +220,47 @@ namespace Starship.WebCore.Controllers {
                 if(type == null) {
                     throw new Exception("Unset entity type.");
                 }
-
+                
                 if(!entity.Id.IsEmpty()) {
                     var existing = Data.DefaultCollection.Find<CosmosDocument>(entity.Id);
 
                     if(existing != null) {
-
-                        if((!HasPermission(account, existing) || type != existing.Type)) {
-                            return null;
-                        }
                         
                         if(type != existing.Type) {
-                            throw new Exception("Mismatched entity type: '" + type + "' compared to '" + existing.Type + "'");
+                            return null;
+                        }
+
+                        if(type == "account") {
+                            
+                            if(account.GetPermission(existing) == PermissionTypes.None) {
+                                return null;
+                            }
+
+                            foreach(var property in source) {
+
+                                var match = typeof(Account).GetProperties().FirstOrDefault(each => each.Name.ToLower() == property.Key.ToLower());
+
+                                /*if(match != null && match.HasAttribute<SecureAttribute>()) {
+                                    var propertyName = match.Name;
+                                    var json = match.GetCustomAttribute<JsonPropertyAttribute>(true);
+
+                                    if(json != null) {
+                                        propertyName = json.PropertyName;
+                                    }
+
+                                    var value = entity.GetPropertyValue<object>(propertyName);
+                                    entity.SetPropertyValue(propertyName, value);
+                                }*/
+
+                                if(match == null || !match.HasAttribute<SecureAttribute>()) {
+                                    existing.SetPropertyValue(property.Key, property.Value);
+                                }
+                            }
+
+                            return existing;
+                        }
+                        else if(account.GetPermission(existing) <= PermissionTypes.Partial) {
+                            return null;
                         }
 
                         entity.SetPropertyValue(Data.Settings.OwnerIdPropertyName, existing.Owner);
@@ -223,18 +270,8 @@ namespace Starship.WebCore.Controllers {
                 return entity;
             }
         }
-
-        private bool HasPermission(Account account, string id) {
-            var existing = Data.DefaultCollection.Find<CosmosDocument>(id);
-
-            if(existing != null) {
-                return HasPermission(account, existing);
-            }
-
-            return true;
-        }
         
-        private IEnumerable<Document> GetData(Account account, string type, DataQueryParameters parameters = null) {
+        private IEnumerable<CosmosDocument> GetData(Account account, string type, DataQueryParameters parameters = null) {
             
             if(parameters == null) {
                 parameters = new DataQueryParameters();
@@ -245,17 +282,18 @@ namespace Starship.WebCore.Controllers {
             var query = entityQuery.Where(each => each.Type == type);
 
             if(!string.IsNullOrEmpty(parameters.Partition)) {
-                query = query.Where(each => each.Owner == parameters.Partition || each.Owner == Data.Settings.SystemOwnerName);
+                query = query.Where(each => each.Owner == parameters.Partition || each.Owner == GlobalDataSettings.SystemOwnerName);
             }
 
             if(!account.IsAdmin()) {
 
                 // Todo:  Cache claim in user identity or sproc could manage entire query
-                var claimsQuery = Data.DefaultCollection.Get<ClaimEntity>();
-                var claims = claimsQuery.Where(each => each.Type == "claim" && each.Owner == account.Id && each.Status == 1).Select(each => each.Value);
+                //var claimsQuery = Data.DefaultCollection.Get<ClaimEntity>();
+                //var claims = claimsQuery.Where(each => each.Type == "claim" && each.Owner == account.Id && each.Status == 1).Select(each => each.Value);
 
                 if(UseSecurity) {
-                    query = query.Where(each => each.Owner == Data.Settings.SystemOwnerName || each.Owner == account.Id || claims.Contains(each.Owner));
+                    query = query.Where(each => each.Owner == GlobalDataSettings.SystemOwnerName || each.Owner == account.Id);
+                    //query = query.Where(each => each.Owner == GlobalDataSettings.SystemOwnerName || each.Owner == account.Id || claims.Contains(each.Owner));
                 }
             }
 
@@ -272,18 +310,9 @@ namespace Starship.WebCore.Controllers {
 
             return query.ToList();
         }
-
+        
         private Account GetAccount() {
             return Users.GetAccount();
-        }
-        
-        private bool HasPermission(Account account, CosmosDocument entity) {
-            
-            if(account.IsAdmin()) {
-                return true;
-            }
-
-            return entity.Id == account.Id || entity.Owner == account.Id || entity.Owner == Data.Settings.SystemOwnerName;
         }
 
         public static bool UseSecurity = true;
