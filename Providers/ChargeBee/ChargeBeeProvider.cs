@@ -17,9 +17,17 @@ namespace Starship.WebCore.Providers.ChargeBee {
         }
 
         public void Apply(Account account) {
+            
+            Subscription subscription;
 
-            var customer = GetCustomer(account.ChargeBeeId);
-            var subscription = GetSubscription(customer);
+            if(string.IsNullOrEmpty(account.ChargeBeeId)) {
+                subscription = InitializeSubscription(account);
+            }
+            else {
+                var customer = GetCustomer(account.ChargeBeeId);
+                subscription = GetSubscription(customer);
+            }
+            
             account.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
             account.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
         }

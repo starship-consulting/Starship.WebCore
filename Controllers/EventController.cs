@@ -1,10 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Core.Extensions;
 using Starship.Core.Security;
 using Starship.Web.QueryModels;
 using Starship.WebCore.Extensions;
@@ -23,25 +25,44 @@ namespace Starship.WebCore.Controllers {
         [HttpGet, Route("api/events")]
         public IActionResult GetEvents([FromQuery] EventQueryParameters parameters) {
 
-            if(parameters == null || string.IsNullOrEmpty(parameters.Type) || string.IsNullOrEmpty(parameters.Name)) {
+            if(parameters == null || parameters.Type.IsEmpty() || parameters.Name.IsEmpty()) {
                 return BadRequest();
             }
             
+            var eventNames = parameters.Name.Split(',').ToArray();
             var account = Users.GetAccount();
-
+            
             var events = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Source.Type == parameters.Type && each.Name == parameters.Name && each.Owner == account.Id);
-            
-            /*if(!account.IsAdmin()) {
-                events = events.Where(each => each.Owner == account.Id);
+                .Where(each => each.Type == "event" && each.Source.Type == parameters.Type && eventNames.Contains(each.Name));
+
+            /*var claims = account.GetClaims();
+
+            if(parameters.Partition.IsEmpty()) {
+                events = events.Where(each => claims.Contains(each.Owner));
+            }
+            else {
+                if(!account.HasClaim(parameters.Type, parameters.Partition)) {
+                    return new List<CosmosEvent>().ToJsonResult(Data.Settings.SerializerSettings);
+                }
+                
+                events = events.Where(each => each.Owner == parameters.Partition);
             }*/
-            
-            if(!string.IsNullOrEmpty(parameters.Filter)) {
-                //events = events.OData().Filter(parameters.Filter);
+            events = events.Where(each => each.Owner == parameters.Partition);
+
+
+            if(!parameters.StartDate.IsEmpty()) {
+                var startDate = DateTime.Parse(parameters.StartDate);
+                events = events.Where(each => each.Parameters.Date >= startDate);
+            }
+
+            if(!parameters.EndDate.IsEmpty()) {
+                var endDate = DateTime.Parse(parameters.EndDate);
+                events = events.Where(each => each.Parameters.Date < endDate);
             }
             
             return events.Select(each => new {
                 parameters = each.Parameters,
+                name = each.Name,
                 source = each.Source.Id
             })
             .ToArray()
@@ -54,10 +75,10 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || account.GetPermission(entity) == PermissionTypes.None) {
+            if(entity == null || !account.CanRead(entity)) {
                 return StatusCode(404);
             }
-
+            
             var events = Data.DefaultCollection.Get<CosmosEvent>()
                 .Where(each => each.Type == "event" && each.Source.Id == id)
                 .Select(each => new {
@@ -78,7 +99,7 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || account.GetPermission(entity) == PermissionTypes.None) {
+            if(entity == null || !account.CanUpdate(entity)) {
                 return StatusCode(404);
             }
 

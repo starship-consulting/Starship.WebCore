@@ -5,10 +5,10 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Web.Security;
-using Starship.WebCore.Extensions;
 using Starship.WebCore.Providers.Authentication;
 using Starship.WebCore.Providers.ChargeBee;
 
@@ -16,10 +16,10 @@ namespace Starship.WebCore.Controllers {
 
     public class UserController : ApiController {
 
-        public UserController(UserRepository users, IsBillingProvider billing, AzureDocumentDbProvider data) {
-            Users = users;
-            Billing = billing;
-            Data = data;
+        public UserController(IServiceProvider serviceProvider) {
+            Users = serviceProvider.GetRequiredService<UserRepository>();
+            Billing = serviceProvider.GetService<IsBillingProvider>();
+            Data = serviceProvider.GetRequiredService<AzureDocumentDbProvider>();
         }
 
         [Route("login")]
@@ -61,24 +61,29 @@ namespace Starship.WebCore.Controllers {
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }*/
 
+        [Authorize]
         [Route("api/user")]
         public IActionResult GetUser() {
-
+            
             if(User == null || User.Identity == null || !User.Identity.IsAuthenticated) {
                 return Ok(new UserProfile());
             }
             
             var account = Users.GetAccount();
-
-            // Todo:  Use query hooks instead
-
+            var profile = Users.GetUserProfile();
+            
             if(Billing != null) {
                 Billing.Apply(account);
             }
 
             var settings = Users.GetSettings();
-            var result = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(new { account, settings }));
 
+            if(profile.IsImpersonating) {
+                settings["impersonate"] = profile.Email;
+            }
+
+            var result = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(new { account, settings }));
+            
             return new JsonResult(result, Data.Settings.SerializerSettings);
         }
 

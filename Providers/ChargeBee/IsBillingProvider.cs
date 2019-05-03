@@ -10,6 +10,6 @@ namespace Starship.WebCore.Providers.ChargeBee {
 
         JToken GetSessionToken(string customerId);
 
-        void Apply(Account user);
+        void Apply(Account account);
     }
 }

@@ -4,13 +4,13 @@ using System.Collections.Generic;
 namespace Starship.WebCore.Configuration {
     public class ClientSettings : Dictionary<string, string> {
 
-        public bool HasImpersonationEmail() {
+        public bool HasImpersonation() {
             return ContainsKey("impersonate");
         }
 
-        public string GetImpersonationEmail() {
+        public string GetImpersonation() {
 
-            if(HasImpersonationEmail()) {
+            if(HasImpersonation()) {
                 return this["impersonate"];
             }
 

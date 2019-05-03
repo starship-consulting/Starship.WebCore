@@ -10,7 +10,7 @@ namespace Starship.WebCore.Extensions {
             if (principal?.Identity == null || !principal.Identity.IsAuthenticated) {
                 return UserProfile.Guest();
             }
-
+            
             return new UserProfile(principal);
         }
     }

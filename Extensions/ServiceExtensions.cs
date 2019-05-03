@@ -5,17 +5,15 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Storage;
 using Starship.Data.Configuration;
-using Starship.Data.Interfaces;
-using Starship.Web.Security;
 using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Interfaces;
+using Starship.WebCore.Providers.Authentication;
 using Starship.WebCore.Providers.ChargeBee;
 using Starship.WebCore.Providers.Postmark;
 
@@ -48,6 +46,17 @@ namespace Microsoft.Extensions.DependencyInjection {
             var settings = ConfigurationMapper.Map<AzureFileStorageSettings>(configuration);
             var provider = new AzureFileStorageProvider(settings);
             services.AddSingleton<IsFileStorageProvider>(provider);
+        }
+
+        public static void UseDataSharing(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<DataSharingSettings>(configuration);
+            services.AddSingleton(settings);
+        }
+
+        public static void UseSiteSettings(this IServiceCollection services, IConfiguration configuration, string environment) {
+            var settings = ConfigurationMapper.Map<SiteSettings>(configuration);
+            settings.Environment = environment;
+            services.AddSingleton(settings);
         }
 
         public static void UseAuth0Cookies(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
