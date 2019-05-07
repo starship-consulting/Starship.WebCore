@@ -9,7 +9,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class BillingController : ApiController {
 
-        public BillingController(IsBillingProvider billing, UserRepository users) {
+        public BillingController(IsBillingProvider billing, AccountManager users) {
             Billing = billing;
             Users = users;
         }
@@ -17,13 +17,13 @@ namespace Starship.WebCore.Controllers {
         [HttpGet, Route("api/billing")]
         public IActionResult Get() {
             var account = Users.GetAccount();
-            Billing.InitializeSubscription(account);
-            var session = Billing.GetSessionToken(account.ChargeBeeId);
+            var subscriber = Billing.GetSubscription(account);
+            var session = Billing.GetSessionToken(subscriber.CustomerId);
             return Ok(session);
         }
         
         private readonly IsBillingProvider Billing;
 
-        private readonly UserRepository Users;
+        private readonly AccountManager Users;
     }
 }

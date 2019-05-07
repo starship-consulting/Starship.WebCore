@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using Microsoft.Azure.Documents;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
-using Starship.WebCore.Extensions;
 using Starship.WebCore.Interfaces;
 
 namespace Starship.WebCore.Providers.Security {
@@ -16,13 +15,18 @@ namespace Starship.WebCore.Providers.Security {
             Data = data;
         }
 
-        public async Task Delete(CosmosDocument document) {
+        public async Task Delete(Account account, CosmosDocument document) {
 
             if(document.Type == "group") {
                 var existingMembers = GetAccounts().Where(each => each.Groups.Contains(document.Id)).ToList();
 
+                if(!existingMembers.Any(each => each.Id == account.Id)) {
+                    existingMembers.Add(account);
+                    account.RemoveGroup(document.Id);
+                }
+
                 foreach(var member in existingMembers) {
-                    member.Groups = member.Groups.Where(each => each != document.Id).ToList();
+                    member.RemoveGroup(document.Id);
                 }
 
                 if(existingMembers.Any()) {
@@ -31,27 +35,34 @@ namespace Starship.WebCore.Providers.Security {
             }
         }
 
-        public async Task Save(CosmosDocument document) {
+        public async Task Save(Account account, CosmosDocument document) {
 
             if(document.Type == "group") {
-
+                var participants = document.Participants.Select(each => each.Id).ToList();
                 var existingMembers = GetAccounts().Where(each => each.Groups.Contains(document.Id)).ToList();
-                var newMembers = GetAccounts().Where(each => document.Participants.Any(participant => participant.Id == each.Id)).ToList();
+                var newMembers = GetAccounts().Where(each => participants.Contains(each.Id)).ToList();
 
+                if(!newMembers.Any(each => each.Id == account.Id)) {
+                    newMembers.Add(account);
+                }
+                
                 var changeset = new List<CosmosDocument>();
 
                 foreach(var member in existingMembers) {
+
+                    if(member.Id == account.Id) {
+                        continue;
+                    }
+
                     if(!document.HasParticipant(member.Id)) {
-                        member.Groups = member.Groups.Where(each => each != document.Id).ToList();
+                        member.RemoveGroup(document.Id);
                         changeset.Add(member);
                     }
                 }
 
                 foreach(var member in newMembers) {
-                    if(!member.Groups.Contains(document.Id)) {
-                        var groups = member.Groups.ToList();
-                        groups.Add(document.Id);
-                        member.Groups = groups.ToList();
+                    if(!member.HasGroup(document.Id)) {
+                        member.AddGroup(document.Id);
                         changeset.Add(member);
                     }
                 }

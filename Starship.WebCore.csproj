@@ -16,6 +16,7 @@
     <PackageReference Include="Microsoft.Azure.DocumentDB.Core" Version="2.2.2" />
     <PackageReference Include="Microsoft.Azure.Storage.File" Version="9.4.2" />
     <PackageReference Include="Postmark" Version="4.0.1" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta0006" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.1" />
   </ItemGroup>
 

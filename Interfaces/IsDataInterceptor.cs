@@ -5,8 +5,8 @@ using Starship.Azure.Data;
 namespace Starship.WebCore.Interfaces {
     public interface IsDataInterceptor {
 
-        Task Save(CosmosDocument document);
+        Task Save(Account account, CosmosDocument document);
 
-        Task Delete(CosmosDocument document);
+        Task Delete(Account account, CosmosDocument document);
     }
 }

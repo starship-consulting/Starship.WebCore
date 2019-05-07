@@ -4,12 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Documents;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
-using Starship.Core.Security;
 using Starship.WebCore.Configuration;
-using Starship.WebCore.Extensions;
 using Starship.WebCore.Providers.Authentication;
 
 namespace Starship.WebCore.Controllers {
@@ -17,7 +16,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class SecurityController : ApiController {
         
-        public SecurityController(UserRepository users, AzureDocumentDbProvider data, EmailClient email, DataSharingSettings dataSettings, SiteSettings siteSettings) {
+        public SecurityController(AccountManager users, AzureDocumentDbProvider data, EmailClient email, DataSharingSettings dataSettings, SiteSettings siteSettings) {
             Users = users;
             Data = data;
             EmailClient = email;
@@ -61,51 +60,60 @@ namespace Starship.WebCore.Controllers {
             return Ok();
         }*/
 
+        [HttpGet, Route("api/access/{id}")]
+        public async Task<IActionResult> AcceptAccess([FromRoute] string id) {
+
+            var account = Users.GetAccount();
+
+            var existing = Data.DefaultCollection.Get<CosmosDocument>()
+                .Where(each => each.Type == "invitation" && each.Owner == id && each.Participants.Any(participant => participant.Id == account.Email))
+                .ToList()
+                .FirstOrDefault();
+
+            if(existing != null) {
+                var otherAccount = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == "account" && each.Id == id).ToList().FirstOrDefault();
+
+                if(otherAccount != null) {
+
+                    account.AddParticipant(id);
+                    otherAccount.AddParticipant(account.Id);
+
+                    var changeset = new List<Resource> { account, otherAccount };
+                    await Data.DefaultCollection.CallProcedure<Document>(Data.Settings.SaveProcedureName, changeset);
+
+                    await Data.DefaultCollection.DeleteAsync(existing.Id);
+                }
+            }
+
+            return Ok();
+        }
+        
         [HttpPost, Route("api/access")]
         public async Task<IActionResult> RequestAccess([FromQuery] string email) {
 
             email = email.ToLower();
 
             var account = Users.GetAccount();
-            
-            var invitedAccount = Data.GetAccount(email);
 
-            if(invitedAccount == null) {
-                invitedAccount = new Account();
-                invitedAccount.Id = Guid.NewGuid().ToString();
-                invitedAccount.Type = "account";
-                invitedAccount.CreationDate = DateTime.UtcNow;
-                invitedAccount.Email = email;
-                invitedAccount.Referrer = account.Id;
-                invitedAccount.Owner = invitedAccount.Id;
-            }
+            var existing = Data.DefaultCollection.Get<CosmosDocument>()
+                .Where(each => each.Type == "invitation" && each.Owner == account.Id && each.Participants.Any(participant => participant.Id == account.Email))
+                .ToList();
 
-            if(invitedAccount.Participants == null) {
-                invitedAccount.Participants = new List<EntityParticipant>();
-            }
-
-            if(account.Participants == null) {
-                account.Participants = new List<EntityParticipant>();
-            }
-            
-            if(account.Participants.Any(participant => participant.Id == invitedAccount.Id)) {
+            if(existing.Any()) {
                 return BadRequest();
             }
 
-            if(invitedAccount.Participants.Any(participant => participant.Id == account.Id)) {
-                return BadRequest();
-            }
+            var invitation = new CosmosDocument {
+                Id = Guid.NewGuid().ToString(),
+                Type = "invitation",
+                CreationDate = DateTime.UtcNow,
+                Owner = account.Owner
+            };
 
-            var accountClaims = account.Participants.ToList();
-            accountClaims.Add(new EntityParticipant(invitedAccount.Id, string.Empty));
-            account.Participants = accountClaims.ToList();
+            invitation.AddParticipant(email, account.GetName());
 
-            var invitedAccountClaims = invitedAccount.Participants.ToList();
-            invitedAccountClaims.Add(new EntityParticipant(account.Id, string.Empty));
-            invitedAccount.Participants = invitedAccountClaims.ToList();
+            await Data.DefaultCollection.SaveAsync(invitation);
             
-            await Data.DefaultCollection.SaveAsync(new List<CosmosDocument> { account, invitedAccount });
-
             if(SiteSettings.IsProduction()) {
 
                 /*var body = DataSettings.InvitationEmailBody
@@ -120,7 +128,7 @@ namespace Starship.WebCore.Controllers {
         
         private readonly AzureDocumentDbProvider Data;
         
-        private readonly UserRepository Users;
+        private readonly AccountManager Users;
 
         private readonly EmailClient EmailClient;
 

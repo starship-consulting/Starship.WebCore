@@ -5,7 +5,7 @@ using Starship.Azure.Data;
 
 namespace Starship.WebCore.Models {
     public class DataQueryParameters {
-
+        
         public IQueryable<T> Apply<T>(IQueryable<T> query) where T : CosmosDocument {
 
             if(IncludeInvalidated == null) {
@@ -27,6 +27,8 @@ namespace Starship.WebCore.Models {
         }
 
         public DateTime? IncludeInvalidated { get; set; }
+
+        public string Claim { get; set; }
 
         public string Filter { get; set; }
 

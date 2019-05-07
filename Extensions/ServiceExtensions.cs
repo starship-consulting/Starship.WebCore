@@ -1,7 +1,6 @@
 ﻿using System;
 using System.IO.Compression;
 using System.Linq;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
@@ -25,6 +24,20 @@ namespace Microsoft.Extensions.DependencyInjection {
             //var settings = ConfigurationMapper.Map<ClientSettings>(configuration);
             services.AddSingleton<UserRepository>();
         }*/
+
+        public static void UseAccounts(this IServiceCollection services, IConfiguration configuration) {
+            services.Configure<AccountManagementSettings>(ConfigurationMapper.GetSection<AccountManagementSettings>(configuration));
+
+            // Todo:  Move to UserImpersonationInterceptor
+            services.AddSession(options => {
+                options.Cookie.HttpOnly = true;
+                options.Cookie.IsEssential = false;
+                options.Cookie.MaxAge = TimeSpan.FromDays(1);
+                options.IdleTimeout = TimeSpan.FromDays(1);
+            });
+            
+            services.AddSingleton<AccountManager>();
+        }
 
         public static AzureDocumentDbProvider UseCosmosDb(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<DataSettings>(configuration);
@@ -58,22 +71,28 @@ namespace Microsoft.Extensions.DependencyInjection {
             settings.Environment = environment;
             services.AddSingleton(settings);
         }
-
-        public static void UseAuth0Cookies(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
+        
+        public static Auth0Provider UseAuth0(this IServiceCollection services, IConfiguration configuration, Action<Auth0Settings> configureSettings = null) {
             var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
-            services.AddAuth0CookieAuthentication(settings, onAuthenticated);
-        }
+            configureSettings?.Invoke(settings);
 
-        public static void UseAuth0Bearer(this IServiceCollection services, IConfiguration configuration, Action<ClaimsPrincipal> onAuthenticated) {
-            var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
-            services.AddAuth0BearerAuthentication(settings, onAuthenticated);
-        }
+            var provider = new Auth0Provider(settings);
 
-        public static ChargeBeeProvider UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
-            var settings = ConfigurationMapper.Map<ChargeBeeSettings>(configuration);
-            var provider = new ChargeBeeProvider(settings);
-            services.AddSingleton<IsBillingProvider, ChargeBeeProvider>(service => provider);
+            if(settings.UseCookies) {
+                provider.AddAuth0CookieAuthentication(services);
+            }
+            
+            if(settings.UseJwtBearer) {
+                provider.AddAuth0BearerAuthentication(services);
+            }
+
+            services.AddSingleton<IsAuthenticationProvider>(provider);
             return provider;
+        }
+
+        public static void UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
+            services.Configure<ChargeBeeSettings>(ConfigurationMapper.GetSection<ChargeBeeSettings>(configuration));
+            services.AddSingleton<IsBillingProvider, ChargeBeeProvider>();
         }
 
         public static PostmarkProvider UsePostmark(this IServiceCollection services, IConfiguration configuration) {

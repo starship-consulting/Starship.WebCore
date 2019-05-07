@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -7,7 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
-using Starship.Core.Security;
 using Starship.Web.QueryModels;
 using Starship.WebCore.Extensions;
 using Starship.WebCore.Providers.Authentication;
@@ -17,7 +15,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class EventController : ApiController {
 
-        public EventController(UserRepository users, AzureDocumentDbProvider data) {
+        public EventController(AccountManager users, AzureDocumentDbProvider data) {
             Users = users;
             Data = data;
         }
@@ -47,8 +45,13 @@ namespace Starship.WebCore.Controllers {
                 
                 events = events.Where(each => each.Owner == parameters.Partition);
             }*/
-            events = events.Where(each => each.Owner == parameters.Partition);
 
+            if(!parameters.Partition.IsEmpty()) {
+                events = events.Where(each => each.Owner == parameters.Partition);
+            }
+            else {
+                events = events.Where(each => each.Owner == account.Id);
+            }
 
             if(!parameters.StartDate.IsEmpty()) {
                 var startDate = DateTime.Parse(parameters.StartDate);
@@ -119,6 +122,6 @@ namespace Starship.WebCore.Controllers {
 
         private readonly AzureDocumentDbProvider Data;
 
-        private readonly UserRepository Users;
+        private readonly AccountManager Users;
     }
 }

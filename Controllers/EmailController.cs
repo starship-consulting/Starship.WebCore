@@ -18,7 +18,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class EmailController : ApiController {
         
-        public EmailController(UserRepository users, AzureDocumentDbProvider data, IsEmailProvider email) {
+        public EmailController(AccountManager users, AzureDocumentDbProvider data, IsEmailProvider email) {
             Users = users;
             Data = data;
             Email = email;
@@ -61,6 +61,6 @@ namespace Starship.WebCore.Controllers {
 
         private readonly AzureDocumentDbProvider Data;
 
-        private readonly UserRepository Users;
+        private readonly AccountManager Users;
     }
 }

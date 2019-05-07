@@ -29,7 +29,7 @@ namespace Starship.WebCore.Controllers {
     public class DataController : ApiController {
         
         public DataController(IServiceProvider serviceProvider) {
-            Users = serviceProvider.GetRequiredService<UserRepository>();
+            Users = serviceProvider.GetRequiredService<AccountManager>();
             Data = serviceProvider.GetRequiredService<AzureDocumentDbProvider>();
             Interceptor = serviceProvider.GetService<IsDataInterceptor>();
         }
@@ -134,7 +134,7 @@ namespace Starship.WebCore.Controllers {
             foreach(var document in documents) {
 
                 if(Interceptor != null) {
-                    await Interceptor.Delete(document);
+                    await Interceptor.Delete(account, document);
                 }
 
                 await Data.DefaultCollection.DeleteAsync(document.Id);
@@ -182,7 +182,7 @@ namespace Starship.WebCore.Controllers {
             }
 
             if(Interceptor != null) {
-                await Interceptor.Save(document);
+                await Interceptor.Save(account, document);
             }
             
             var result = await Data.DefaultCollection.SaveAsync(document);
@@ -264,10 +264,13 @@ namespace Starship.WebCore.Controllers {
                 parameters = new DataQueryParameters();
             }
 
-            if(parameters.Partition == "self") {
-                parameters.Partition = account.Id;
-            }
+            //if(parameters.Partition == "self") {
+            //    parameters.Partition = account.Id;
+            //}
             
+            var participants = account.GetParticipants().Select(each => each.Id);
+            var groups = account.GetGroups();
+
             if(type == "account") {
 
                 var accounts = GetAccounts();
@@ -275,9 +278,11 @@ namespace Starship.WebCore.Controllers {
                 // Non-admin users can see participating accounts and group member accounts
                 if(!account.IsAdmin()) {
                     
-                    var participants = account.Participants.Select(each => each.Id);
-                        
-                    accounts = accounts.Where(each => each.Id == account.Id || participants.Contains(each.Id) || each.Groups.Any(group => account.Groups.Contains(group)));
+                    accounts = accounts.Where(each =>
+                        each.Id == account.Id
+                        || participants.Contains(each.Id)
+                        || groups.Contains(each.Id)
+                        || each.Groups.Any(group => groups.Contains(group)));
                 }
 
                 accounts = parameters.Apply(accounts);
@@ -287,8 +292,26 @@ namespace Starship.WebCore.Controllers {
 
             var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == type);
             var claims = account.GetClaims().Select(each => each.Scope).ToList();
-
-            query = query.Where(each => claims.Contains(each.Owner) || each.Participants.Any(participant => participant.Id == account.Id));
+            
+            // Temporary hack
+            if(type == "task" || type == "field") {
+                query = query.Where(each =>
+                    claims.Contains(each.Owner)
+                    || participants.Contains(each.Owner)
+                    || groups.Contains(each.Owner)
+                    || each.Participants.Any(participant => participant.Id == account.Id));
+            }
+            // Temporary hack
+            else if(type == "transaction" && (account.IsManager() || account.IsCoordinator())) {
+                query = query.Where(each =>
+                    claims.Contains(each.Owner)
+                    || participants.Contains(each.Owner)
+                    || groups.Contains(each.Owner)
+                    || each.Participants.Any(participant => participant.Id == account.Id));
+            }
+            else {
+                query = query.Where(each => claims.Contains(each.Owner)); //each.Participants.Any(participant => participant.Id == account.Id)
+            }
 
             query = parameters.Apply(query);
             
@@ -311,6 +334,6 @@ namespace Starship.WebCore.Controllers {
 
         private readonly AzureDocumentDbProvider Data;
 
-        private readonly UserRepository Users;
+        private readonly AccountManager Users;
     }
 }
