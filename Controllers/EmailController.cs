@@ -2,16 +2,11 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using PostmarkDotNet;
-using PostmarkDotNet.Legacy;
-using PostmarkDotNet.Model;
-using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Extensions;
 using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
-using Starship.WebCore.Providers.Postmark;
 
 namespace Starship.WebCore.Controllers {
 

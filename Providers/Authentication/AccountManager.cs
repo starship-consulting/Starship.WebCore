@@ -30,11 +30,7 @@ namespace Starship.WebCore.Providers.Authentication {
                 Authentication.Authenticated -= OnAuthenticated;
             }
         }
-
-        private Account GetAccountById(string id) {
-            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Id == id).ToList().FirstOrDefault();
-        }
-
+        
         public Account GetAccountByEmail(string email) {
             email = email.ToLower();
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();

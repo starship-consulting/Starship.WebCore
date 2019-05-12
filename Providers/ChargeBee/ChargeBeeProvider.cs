@@ -6,6 +6,7 @@ using ChargeBee.Models;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
+using Starship.Azure.Providers.Cosmos;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
@@ -44,11 +45,13 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 subscription = GetSubscription(customer);
             }
             
-            chargebee.ChargeBeeId = subscription.CustomerId;
-            chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
-            chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
+            if(chargebee.ChargeBeeId != subscription.CustomerId) {
+                chargebee.ChargeBeeId = subscription.CustomerId;
+                chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
+                chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
 
-            account.SetComponent(chargebee);
+                account.SetComponent(chargebee);
+            }
 
             return subscription;
         }
@@ -171,6 +174,8 @@ namespace Starship.WebCore.Providers.ChargeBee {
 
             return token;
         }
+
+        private readonly AzureDocumentDbProvider Data;
 
         private readonly ChargeBeeSettings Settings;
 

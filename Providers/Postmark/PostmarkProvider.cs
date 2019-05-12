@@ -71,6 +71,10 @@ namespace Starship.WebCore.Providers.Postmark {
             message.HtmlBody = email.GetHtml();
             message.From = signature.EmailAddress;
 
+            if(email.CC != null && email.CC.Any()) {
+                message.Cc = string.Join(',', email.CC.ToArray());
+            }
+
             if(account.OutboundEmailBCC) {
                 message.Bcc = signature.EmailAddress;
             }

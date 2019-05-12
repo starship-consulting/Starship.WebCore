@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Community.OData.Linq;
@@ -150,7 +151,7 @@ namespace Starship.WebCore.Controllers {
             var resources = new List<Resource>();
 
             foreach(var entity in entities) {
-                var document = TryGetResource(account, entity);
+                var document = TryUpdateResource(account, entity);
 
                 if(document == null || !account.CanUpdate(document)) {
                     return StatusCode(404);
@@ -171,7 +172,7 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Save([FromRoute] string type, [FromBody] ExpandoObject entity) {
             
             var account = GetAccount();
-            var document = TryGetResource(account, entity, type);
+            var document = TryUpdateResource(account, entity, type);
 
             if(document == null || !account.CanUpdate(document)) {
                 return StatusCode(404);
@@ -189,7 +190,7 @@ namespace Starship.WebCore.Controllers {
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }
         
-        private CosmosDocument TryGetResource(Account account, ExpandoObject source, string defaultType = "") {
+        private CosmosDocument TryUpdateResource(Account account, ExpandoObject source, string defaultType = "") {
 
             var settings = new JsonSerializerSettings {
                 ContractResolver = new DocumentContractResolver()
@@ -198,63 +199,51 @@ namespace Starship.WebCore.Controllers {
             var serialized = JsonConvert.SerializeObject(source, settings);
 
             using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
-                var entity = JsonSerializable.LoadFrom<CosmosDocument>(stream);
+                var model = JsonSerializable.LoadFrom<CosmosDocument>(stream);
 
-                if(entity.Type.IsEmpty()) {
-                    entity.Type = defaultType;
-                }
-
-                if(entity.Type == null) {
-                    throw new Exception("Unset entity type.");
+                if(model.Type.IsEmpty()) {
+                    model.Type = defaultType;
                 }
                 
-                if(!entity.Id.IsEmpty()) {
-                    var existing = Data.DefaultCollection.Find<CosmosDocument>(entity.Id);
+                if(model.Type == null) {
+                    throw new Exception("Unset entity type.");
+                }
 
-                    if(existing != null) {
+                model.Type = model.Type.ToLower();
+                
+                if(!model.Id.IsEmpty()) {
+
+                    var entity = Data.DefaultCollection.Get<CosmosDocument>()
+                        .Where(each => model.Id == each.Id && model.Type == each.Type)
+                        .ToList()
+                        .FirstOrDefault();
+
+                    if(entity != null) {
                         
-                        if(entity.Type != existing.Type) {
+                        if(!account.CanUpdate(entity)) {
                             return null;
                         }
 
-                        if(entity.Type == "account") {
+                        PropertyInfo[] properties = model.Type == "account" ? typeof(Account).GetProperties() : typeof(CosmosDocument).GetProperties();
+
+                        var editableProperties = source
+                            .Where(each => !properties.Any(property => property.Name.ToLower() == each.Key.ToLower() && property.HasAttribute<SecureAttribute>()))
+                            .ToList();
+
+                        foreach(var property in editableProperties) {
+                            entity.SetPropertyValue(property.Key, property.Value);
+                        }
                             
-                            if(!account.CanUpdate(existing)) {
-                                return null;
-                            }
-
-                            foreach(var property in source) {
-
-                                var match = typeof(Account).GetProperties().FirstOrDefault(each => each.Name.ToLower() == property.Key.ToLower());
-
-                                /*if(match != null && match.HasAttribute<SecureAttribute>()) {
-                                    var propertyName = match.Name;
-                                    var json = match.GetCustomAttribute<JsonPropertyAttribute>(true);
-
-                                    if(json != null) {
-                                        propertyName = json.PropertyName;
-                                    }
-
-                                    var value = entity.GetPropertyValue<object>(propertyName);
-                                    entity.SetPropertyValue(propertyName, value);
-                                }*/
-
-                                if(match == null || !match.HasAttribute<SecureAttribute>()) {
-                                    existing.SetPropertyValue(property.Key, property.Value);
-                                }
-                            }
-
-                            return existing;
-                        }
-                        else if(!account.CanUpdate(existing)) {
-                            return null;
-                        }
-
-                        entity.Owner = existing.Owner;
+                        entity.UpdatedBy = account.Id;
+                        return entity;
                     }
                 }
 
-                return entity;
+                // Todo:  Prevent editing secure fields?
+                model.UpdatedBy = account.Id;
+                model.Owner = account.Id;
+
+                return model;
             }
         }
         
@@ -312,7 +301,7 @@ namespace Starship.WebCore.Controllers {
             else {
                 query = query.Where(each => claims.Contains(each.Owner)); //each.Participants.Any(participant => participant.Id == account.Id)
             }
-
+             
             query = parameters.Apply(query);
             
             if(!string.IsNullOrEmpty(parameters.Filter)) {

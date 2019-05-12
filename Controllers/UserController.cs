@@ -63,59 +63,7 @@ namespace Starship.WebCore.Controllers {
             var result = await Data.DefaultCollection.SaveAsync(document);
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }*/
-
-        [HttpGet, Route("api/importteams")]
-        public async Task<IActionResult> UserImport() {
-            
-            var teams = new Dictionary<string, CosmosDocument>();
-            var entities = new List<CosmosDocument>();
-                
-            using (var stream = System.IO.File.OpenRead(Environment.CurrentDirectory + "\\data\\imports\\teams.xlsx")) {
-
-                var results = new SpreadsheetConverter().Read(stream);
-
-                foreach(var row in results.OrderBy(each => each["team"])) {
-
-                    var email = row["email"].ToString().ToLower();
-                    var teamName = row["team"].ToString();
-                    var role = row["role"].ToString();
-
-                    var account = Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();
-
-                    if(account == null) {
-                        throw new Exception("Unable to locate account: " + email);
-                    }
-
-                    if(!entities.Contains(account)) {
-                        entities.Add(account);
-                    }
-
-                    account.Role = role.ToLower();
-
-                    if(!teams.ContainsKey(teamName)) {
-
-                        var team = new CosmosDocument {
-                            Id = Guid.NewGuid().ToString(),
-                            Type = "group",
-                            Owner = account.Id
-                        };
-
-                        entities.Add(team);
-                        team.SetPropertyValue("name", teamName);
-                        teams.Add(teamName, team);
-                    }
-
-                    if(!teams[teamName].HasParticipant(account.Id)) {
-                        teams[teamName].AddParticipant(account.Id, string.Empty);
-                    }
-                }
-            }
-
-            await Data.DefaultCollection.SaveAsync(entities);
-
-            return Ok();
-        }
-
+        
         [Authorize]
         [HttpPost, Route("api/users/{id}")]
         public async Task<IActionResult> SaveUser([FromRoute] string id, [FromQuery] AccountQueryOptions query) {
@@ -139,7 +87,7 @@ namespace Starship.WebCore.Controllers {
 
         [Authorize]
         [Route("api/user")]
-        public IActionResult GetUserProfile() {
+        public async Task<IActionResult> GetUserProfile() {
             
             if(User == null || User.Identity == null || !User.Identity.IsAuthenticated) {
                 return Ok(new UserProfile());
@@ -149,6 +97,7 @@ namespace Starship.WebCore.Controllers {
             
             if(Billing != null) {
                 Billing.GetSubscription(account);
+                await Data.DefaultCollection.SaveAsync(account);
             }
 
             var settings = Accounts.GetSettings();
