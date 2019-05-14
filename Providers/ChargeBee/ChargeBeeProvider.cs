@@ -18,6 +18,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
         public ChargeBeeProvider(IOptionsMonitor<ChargeBeeSettings> settings, AccountManager accountManager) {
             Settings = settings.CurrentValue;
             AccountManager = accountManager;
+            AccountManager.ClientSettingsProviders.Add(this);
             AccountManager.AccountLoggedIn += Apply;
 
             ApiConfig.Configure(Settings.Site, Settings.Key);
@@ -45,13 +46,11 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 subscription = GetSubscription(customer);
             }
             
-            if(chargebee.ChargeBeeId != subscription.CustomerId) {
-                chargebee.ChargeBeeId = subscription.CustomerId;
-                chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
-                chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
+            chargebee.ChargeBeeId = subscription.CustomerId;
+            chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
+            chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
 
-                account.SetComponent(chargebee);
-            }
+            account.SetComponent(chargebee);
 
             return subscription;
         }

@@ -22,7 +22,8 @@ namespace Starship.WebCore.Providers.Authentication {
             ContextAccessor = provider.GetService<IHttpContextAccessor>();
             Authentication = provider.GetService<IsAuthenticationProvider>();
             Authentication.Authenticated += OnAuthenticated;
-            ClientSettingsProviders = provider.GetServices<IsClientSettingsProvider>().ToList();
+
+            ClientSettingsProviders = new List<IsClientSettingsProvider>();
         }
         
         public void Dispose() {
@@ -109,9 +110,9 @@ namespace Starship.WebCore.Providers.Authentication {
 
         public const string UserImpersonationKey = "impersonate";
 
-        private HttpContext Context => ContextAccessor.HttpContext;
+        public List<IsClientSettingsProvider> ClientSettingsProviders;
 
-        private List<IsClientSettingsProvider> ClientSettingsProviders;
+        private HttpContext Context => ContextAccessor.HttpContext;
 
         private readonly AzureDocumentDbProvider Data;
 

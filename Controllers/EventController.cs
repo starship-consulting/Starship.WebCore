@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -78,7 +79,7 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || !account.CanRead(entity)) {
+            if(entity == null || !account.CanRead(entity, GetSharingParticipants(account))) {
                 return StatusCode(404);
             }
             
@@ -102,7 +103,7 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             var entity = Data.DefaultCollection.Find<CosmosDocument>(id);
 
-            if(entity == null || !account.CanUpdate(entity)) {
+            if(entity == null || !account.CanUpdate(entity, GetSharingParticipants(account))) {
                 return StatusCode(404);
             }
 
@@ -118,6 +119,16 @@ namespace Starship.WebCore.Controllers {
             }
 
             return Ok(new { success = true });
+        }
+
+        // Todo:  Move to AccountManager
+        private List<string> GetSharingParticipants(Account account) {
+            var participants = account.GetParticipants().Select(each => each.Id).ToList();
+            var groups = account.GetGroups();
+            var groupParticipants = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == "group" && groups.Contains(each.Id)).SelectMany(each => each.Participants).Select(each => each.Id).ToList();
+
+            participants.AddRange(groupParticipants);
+            return participants.Distinct().ToList();
         }
 
         private readonly AzureDocumentDbProvider Data;

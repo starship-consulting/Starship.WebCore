@@ -98,7 +98,7 @@ namespace Starship.WebCore.Controllers {
                 .ToList()
                 .FirstOrDefault();
 
-            if(entity == null || !account.CanRead(entity)) {
+            if(entity == null || !account.CanRead(entity, GetSharingParticipants(account))) {
                 return StatusCode(404);
             }
             
@@ -153,7 +153,7 @@ namespace Starship.WebCore.Controllers {
             foreach(var entity in entities) {
                 var document = TryUpdateResource(account, entity);
 
-                if(document == null || !account.CanUpdate(document)) {
+                if(document == null || !account.CanUpdate(document, GetSharingParticipants(account))) {
                     return StatusCode(404);
                 }
                 
@@ -174,7 +174,7 @@ namespace Starship.WebCore.Controllers {
             var account = GetAccount();
             var document = TryUpdateResource(account, entity, type);
 
-            if(document == null || !account.CanUpdate(document)) {
+            if(document == null || !account.CanUpdate(document, GetSharingParticipants(account))) {
                 return StatusCode(404);
             }
             
@@ -220,7 +220,7 @@ namespace Starship.WebCore.Controllers {
 
                     if(entity != null) {
                         
-                        if(!account.CanUpdate(entity)) {
+                        if(!account.CanUpdate(entity, GetSharingParticipants(account))) {
                             return null;
                         }
 
@@ -257,8 +257,7 @@ namespace Starship.WebCore.Controllers {
             //    parameters.Partition = account.Id;
             //}
             
-            var participants = account.GetParticipants().Select(each => each.Id);
-            var groups = account.GetGroups();
+            var participants = GetSharingParticipants(account);
 
             if(type == "account") {
 
@@ -270,8 +269,8 @@ namespace Starship.WebCore.Controllers {
                     accounts = accounts.Where(each =>
                         each.Id == account.Id
                         || participants.Contains(each.Id)
-                        || groups.Contains(each.Id)
-                        || each.Groups.Any(group => groups.Contains(group)));
+                        /*|| groups.Contains(each.Id)
+                        || each.Groups.Any(group => groups.Contains(group))*/);
                 }
 
                 accounts = parameters.Apply(accounts);
@@ -280,28 +279,50 @@ namespace Starship.WebCore.Controllers {
             }
 
             var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == type);
-            var claims = account.GetClaims().Select(each => each.Scope).ToList();
+
+            if(!account.IsAdmin()) {
+
+                var claims = account.GetClaims().Select(each => each.Scope).ToList();
             
-            // Temporary hack
-            if(type == "task" || type == "field") {
-                query = query.Where(each =>
-                    claims.Contains(each.Owner)
-                    || participants.Contains(each.Owner)
-                    || groups.Contains(each.Owner)
-                    || each.Participants.Any(participant => participant.Id == account.Id));
+                // Temporary hack
+                if(type == "task" || type == "field") {
+                    query = query.Where(each =>
+                        claims.Contains(each.Owner)
+                        || participants.Contains(each.Owner)
+                        //|| groups.Contains(each.Owner)
+                        /*|| each.Participants.Any(participant => participant.Id == account.Id)*/);
+                }
+                // Temporary hack
+                else if(type == "transaction") {
+                    
+                    if(account.IsManager() || account.IsCoordinator()) {
+                        query = query.Where(transaction =>
+                            transaction.Owner == account.Id
+                            || participants.Contains(transaction.Owner)
+                            //|| groups.Contains(transaction.Owner)
+                            /*|| transaction.Participants.Any(participant => participant.Id == account.Id)*/);
+                    }
+                    else {
+                        query = query.Where(transaction => transaction.Owner == account.Id || transaction.Participants.Any(participant => participant.Id == account.Id));
+                    }
+                }
+                // Temporary hack
+                else if(type == "contact") {
+                    
+                    query = query.Where(contact =>
+                        claims.Contains(contact.Owner)
+                        || participants.Contains(contact.Owner)
+                        //|| groups.Contains(contact.Owner)
+                        /*|| contact.Participants.Any(participant => participant.Id == account.Id)*/);
+                }
+                else if(type == "group") {
+                    query = query.Where(group => group.Participants.Any(participant => participants.Contains(participant.Id)));
+                }
+                else {
+                    query = query.Where(each => claims.Contains(each.Owner)); //each.Participants.Any(participant => participant.Id == account.Id)
+                }
             }
-            // Temporary hack
-            else if(type == "transaction" && (account.IsManager() || account.IsCoordinator())) {
-                query = query.Where(each =>
-                    claims.Contains(each.Owner)
-                    || participants.Contains(each.Owner)
-                    || groups.Contains(each.Owner)
-                    || each.Participants.Any(participant => participant.Id == account.Id));
-            }
-            else {
-                query = query.Where(each => claims.Contains(each.Owner)); //each.Participants.Any(participant => participant.Id == account.Id)
-            }
-             
+
             query = parameters.Apply(query);
             
             if(!string.IsNullOrEmpty(parameters.Filter)) {
@@ -309,6 +330,16 @@ namespace Starship.WebCore.Controllers {
             }
 
             return query.Take(1000).ToList();
+        }
+
+        // Todo:  Move to AccountManager
+        private List<string> GetSharingParticipants(Account account) {
+            var participants = account.GetParticipants().Select(each => each.Id).ToList();
+            var groups = account.GetGroups();
+            var groupParticipants = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == "group" && groups.Contains(each.Id)).SelectMany(each => each.Participants).Select(each => each.Id).ToList();
+
+            participants.AddRange(groupParticipants);
+            return participants.Distinct().ToList();
         }
 
         private IQueryable<Account> GetAccounts() {
