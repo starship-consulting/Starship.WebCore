@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using ChargeBee.Models;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
@@ -9,5 +10,19 @@ namespace Starship.WebCore.Providers.ChargeBee {
         JToken GetSessionToken(string customerId);
 
         Subscription GetSubscription(Account account);
+
+        void ChangeSubscriptionPlan(Subscription subscription, string plan, bool immediate);
+
+        List<Plan> GetPlans();
+
+        List<Coupon> GetCoupons();
+
+        List<Subscription> GetSubscriptions();
+
+        List<Subscription> GetActiveSubscriptions();
+
+        List<Customer> GetCustomers();
+
+        void DeleteCustomer(Customer customer);
     }
 }

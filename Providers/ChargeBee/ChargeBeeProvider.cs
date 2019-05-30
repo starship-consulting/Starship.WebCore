@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using ChargeBee.Api;
+using ChargeBee.Exceptions;
 using ChargeBee.Models;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
@@ -31,6 +32,52 @@ namespace Starship.WebCore.Providers.ChargeBee {
         private void Apply(Account account) {
             GetSubscription(account);
         }
+
+        public List<Plan> GetPlans() {
+            return GetResults(Plan.List()).Select(each => each.Plan).ToList();
+        }
+
+        public List<Coupon> GetCoupons() {
+            return GetResults(Coupon.List()).Select(each => each.Coupon).ToList();
+        }
+
+        public List<Customer> GetCustomers() {
+            return GetResults(Customer.List()).Select(each => each.Customer).ToList();
+        }
+
+        public List<Subscription> GetSubscriptions() {
+            return GetResults(Subscription.List()).Select(each => each.Subscription).ToList();
+        }
+
+        public List<Subscription> GetActiveSubscriptions() {
+            return GetResults(Subscription.List()
+                .Status().IsNot(Subscription.StatusEnum.Cancelled))
+                .Select(each => each.Subscription)
+                .Where(each => each.Status != Subscription.StatusEnum.Paused)
+                .ToList();
+        }
+
+        public void DeleteCustomer(Customer customer) {
+            var subscriptions = GetSubscriptions(customer);
+
+            foreach(var subscription in subscriptions) {
+                Subscription.Delete(subscription.Id);
+            }
+
+            Customer.Delete(customer.Id).Request();
+        }
+
+        public void ChangeSubscriptionPlan(Subscription subscription, string planId, bool immediate) {
+            
+            var request = Subscription.Update(subscription.Id).PlanId(planId);
+
+            if(immediate) {
+                request.Request();
+            }
+            else {
+                request.EndOfTerm(true).Request();
+            }
+        }
         
         public Subscription GetSubscription(Account account) {
             
@@ -43,7 +90,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
             }
             else {
                 var customer = GetCustomer(chargebee.ChargeBeeId);
-                subscription = GetSubscription(customer);
+                subscription = GetOrCreateSubscription(customer);
             }
             
             chargebee.ChargeBeeId = subscription.CustomerId;
@@ -55,33 +102,43 @@ namespace Starship.WebCore.Providers.ChargeBee {
             return subscription;
         }
 
+        private List<ListResult.Entry> GetResults<T>(T list) where T : ListRequestBase<T> {
+
+            var results = new List<ListResult.Entry>();
+            var query = list.Limit(100);
+
+            while(true) {
+                var request = query.Request();
+                results.AddRange(request.List.ToList());
+
+                if(string.IsNullOrEmpty(request.NextOffset)) {
+                    break;
+                }
+
+                query = query.Offset(request.NextOffset);
+            }
+
+            return results;
+        }
+
         private Subscription InitializeSubscription(string firstName, string lastName, string email) {
 
-            //Customer customer = null;
+            Customer customer;
 
-            /*try {
-                customer = GetCustomer(component.ChargeBeeId);
+            try {
+                customer = FindCustomerByEmail(email);
+
+                if(customer != null) {
+                    return GetOrCreateSubscription(customer);
+                }
             }
             catch(InvalidRequestException) {
             }
-
-            if(customer == null) {
-                customer = CreateCustomer(component.ChargeBeeId);
-            }*/
             
-            var customer = CreateCustomer(firstName, lastName, email);
-            return GetSubscription(customer);
+            customer = CreateCustomer(firstName, lastName, email);
+            return GetOrCreateSubscription(customer);
         }
-
-        /*private Customer GetCustomer(Account account) {
-
-            if(string.IsNullOrEmpty(account.ChargeBeeId)) {
-                return FindCustomerByEmail(account.Email);
-            }
-
-            return GetCustomer(account.ChargeBeeId);
-        }*/
-
+        
         private List<ListResult.Entry> HostedPages() {
             return HostedPage.List()
                 .Request()
@@ -94,7 +151,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .Customer;
         }
 
-        public Subscription GetSubscription(Customer customer) {
+        public List<Subscription> GetSubscriptions(Customer customer) {
 
             var subscriptions = Subscription.List()
                 .CustomerId().Is(customer.Id)
@@ -102,7 +159,18 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .List;
             
             if(subscriptions != null && subscriptions.Any()) {
-                return subscriptions.First().Subscription;
+                return subscriptions.Select(each => each.Subscription).ToList();
+            }
+
+            return new List<Subscription>();
+        }
+
+        public Subscription GetOrCreateSubscription(Customer customer) {
+
+            var subscriptions = GetSubscriptions(customer);
+            
+            if(subscriptions != null && subscriptions.Any()) {
+                return subscriptions.First();
             }
 
             return Subscription.CreateForCustomer(customer.Id)

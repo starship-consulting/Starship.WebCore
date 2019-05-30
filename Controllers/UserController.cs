@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
-using Starship.Data.Converters;
 using Starship.Web.Security;
 using Starship.WebCore.Models;
 using Starship.WebCore.Providers.Authentication;
@@ -84,6 +83,34 @@ namespace Starship.WebCore.Controllers {
 
             return Ok(true);
         }
+
+        /*[Authorize]
+        [Route("api/users")]
+        public async Task<IActionResult> GetUsers() {
+
+            var currentUser = Accounts.GetAccount();
+
+            if(!currentUser.IsAdmin()) {
+                return Unauthorized();
+            }
+
+            var customers = Billing.GetCustomers();
+            var accounts = Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.ValidUntil == null).ToList();
+
+            return Ok(accounts.Select(account => {
+
+                var customer = customers.FirstOrDefault(each => each.Email.ToLower() == account.Email.ToLower());
+
+                if(customer != null) {
+
+                }
+                
+                return new {
+                    id = account.Id,
+                    email
+                };
+            }));
+        }*/
 
         [Authorize]
         [Route("api/user")]

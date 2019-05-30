@@ -37,6 +37,10 @@ namespace Starship.WebCore.Providers.Authentication {
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();
         }
 
+        public Account GetAccountById(string id) {
+            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Id == id).ToList().FirstOrDefault();
+        }
+
         public Account GetAccount() {
             var profile = GetUserProfile();
 

@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using PostmarkDotNet.Exceptions;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Extensions;
@@ -22,12 +23,16 @@ namespace Starship.WebCore.Controllers {
         [HttpGet, Route("api/email/verify")]
         public async Task<IActionResult> Verify([FromQuery] string email) {
 
-            var account = Users.GetAccount();
-            var confirmed = await Email.Verify(account, email);
+            try {
+                var account = Users.GetAccount();
+                var confirmed = await Email.Verify(account, email);
 
-            await Data.DefaultCollection.SaveAsync(account);
-            
-            return Ok(new { confirmed });
+                await Data.DefaultCollection.SaveAsync(account);
+                return Ok(new { confirmed });
+            }
+            catch(PostmarkValidationException ex) {
+                return BadRequest(ex.Message);
+            }
         }
 
         [HttpPost, Route("api/email")]

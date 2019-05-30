@@ -24,42 +24,18 @@ namespace Starship.WebCore.Controllers {
             SiteSettings = siteSettings;
         }
 
-        /*[HttpGet, Route("claims/{claimId}")]
-        public async Task<IActionResult> GrantClaim([FromRoute] string claimId) {
-            
-            var claim = Collection.Find<ClaimEntity>(claimId);
-
-            if(claim == null) {
-                return StatusCode(404);
-            }
-            
-            var user = Users.GetUserProfile();
-
-            if(user.Email.ToLower() != claim.Value.ToLower()) {
-
-                // Need to handle this better.  Inform user that he used an email that didn't match?
-                return Redirect("/");
-            }
-
-            claim.Status = 1;
-            claim.Value = user.Id;
-
-            //await Collection.SaveAsync(claim);
-
-            return Redirect("/");
-        }*/
-
-        /*[HttpPost, Route("api/groups/{groupId}/{accountId}")]
-        public async Task<IActionResult> AddGroupMember([FromRoute] string groupId, [FromRoute] string accountId) {
+        [HttpPost, Route("api/policy")]
+        public async Task<IActionResult> SavePolicies([FromBody] List<CosmosPolicy> policies) {
 
             var account = Users.GetAccount();
+            
+            account.Policies = policies;
 
-            var group = 
-            if(account.CanUpdate())
+            await Data.DefaultCollection.SaveAsync(account);
 
             return Ok();
-        }*/
-
+        }
+        
         [HttpGet, Route("api/access/{id}")]
         public async Task<IActionResult> AcceptAccess([FromRoute] string id) {
 
@@ -86,6 +62,45 @@ namespace Starship.WebCore.Controllers {
             }
 
             return Ok();
+        }
+
+        [HttpDelete, Route("api/access/{idOrEmail}")]
+        public async Task<IActionResult> RejectAccess([FromRoute] string idOrEmail) {
+
+            idOrEmail = idOrEmail.ToLower();
+
+            var sourceAccount = Users.GetAccount();
+            var targetAccount = Users.GetAccountByEmail(idOrEmail) ?? Users.GetAccountById(idOrEmail);
+
+            if(targetAccount != null) {
+                await DeleteInvitation(targetAccount, sourceAccount.Email);
+
+                if(targetAccount.HasParticipant(sourceAccount.Id)) {
+                    targetAccount.RemoveParticipant(sourceAccount.Id);
+                    await Data.DefaultCollection.SaveAsync(targetAccount);
+                }
+
+                if(sourceAccount.HasParticipant(targetAccount.Id)) {
+                    sourceAccount.RemoveParticipant(targetAccount.Id);
+                    await Data.DefaultCollection.SaveAsync(sourceAccount);
+                }
+            }
+
+            await DeleteInvitation(sourceAccount, idOrEmail);
+
+            return Ok(true);
+        }
+
+        private async Task DeleteInvitation(Account senderAccount, string receiverEmail) {
+
+            var invitation = Data.DefaultCollection.Get<CosmosDocument>()
+                .Where(each => each.Type == "invitation" && each.Owner == senderAccount.Id && each.Participants.Any(participant => participant.Id == receiverEmail))
+                .ToList()
+                .FirstOrDefault();
+
+            if(invitation != null) {
+                await Data.DefaultCollection.DeleteAsync(invitation);
+            }
         }
         
         [HttpPost, Route("api/access")]
@@ -114,14 +129,14 @@ namespace Starship.WebCore.Controllers {
 
             await Data.DefaultCollection.SaveAsync(invitation);
             
-            if(SiteSettings.IsProduction()) {
+            /*if(SiteSettings.IsProduction()) {
 
-                /*var body = DataSettings.InvitationEmailBody
-                .Replace("{{url}}", SiteSettings.Url)
-                .Replace("{{name}}", account.GetName());
+                var body = DataSettings.InvitationEmailBody
+                    .Replace("{{url}}", SiteSettings.Url)
+                    .Replace("{{name}}", account.GetName());
 
-                await EmailClient.SendAsync(string.Empty, email, DataSettings.InvitationEmailSubject, body);*/
-            }
+                await EmailClient.SendAsync(string.Empty, email, DataSettings.InvitationEmailSubject, body);
+            }*/
 
             return Ok(true);
         }

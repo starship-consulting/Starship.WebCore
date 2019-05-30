@@ -17,6 +17,10 @@ namespace Starship.WebCore.Providers.Authentication {
             Settings = settings;
         }
 
+        public void GetUsers() {
+
+        }
+
         public void AddAuth0CookieAuthentication(IServiceCollection services) {
             
             var builder = services.AddAuthentication(options => {
