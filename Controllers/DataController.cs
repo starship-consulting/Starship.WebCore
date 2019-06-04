@@ -251,10 +251,16 @@ namespace Starship.WebCore.Controllers {
                 // Todo:  Prevent editing secure fields?
                 model.UpdatedBy = account.Id;
 
-                var participants = GetSharingParticipants(account);
-
-                if(!participants.Contains(model.Owner)) {
+                if(model.Owner.IsEmpty()) {
                     model.Owner = account.Id;
+                }
+                else if(!account.IsAdmin()) {
+
+                    var participants = GetSharingParticipants(account);
+
+                    if(!participants.Contains(model.Owner)) {
+                        model.Owner = account.Id;
+                    }
                 }
 
                 return model;
