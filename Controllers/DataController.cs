@@ -298,7 +298,7 @@ namespace Starship.WebCore.Controllers {
             var claims = new List<string> { account.Id, GlobalDataSettings.SystemOwnerName };
             
             //if(!account.IsAdmin()) {
-                if(type == "task" || type == "field" || type == "goalstrategy" || type == "goal") {
+                if(type == "task" || type == "field" || type == "goalstrategy" || type == "goal" || type == "dataset") {
                     query = query.Where(each => claims.Contains(each.Owner) || participants.Contains(each.Owner));
                 }
                 else if(type == "contact") {
