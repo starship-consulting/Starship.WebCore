@@ -9,7 +9,9 @@ namespace Starship.WebCore.Providers.ChargeBee {
         
         JToken GetSessionToken(string customerId);
 
-        Subscription GetSubscription(Account account);
+        JToken GetCheckoutToken(Account account, string planId = "");
+
+        Subscription GetSubscription(Account account, string planId = "");
 
         void ChangeSubscriptionPlan(Subscription subscription, string plan, bool immediate);
 

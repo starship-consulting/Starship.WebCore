@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
@@ -17,7 +15,6 @@ namespace Starship.WebCore.Providers.Authentication {
     public class AccountManager : IDisposable {
         
         public AccountManager(IServiceProvider provider) {
-            Settings = provider.GetService<IOptionsMonitor<AccountManagementSettings>>().CurrentValue;
             Data = provider.GetService<AzureDocumentDbProvider>();
             ContextAccessor = provider.GetService<IHttpContextAccessor>();
             Authentication = provider.GetService<IsAuthenticationProvider>();
@@ -45,7 +42,9 @@ namespace Starship.WebCore.Providers.Authentication {
             var profile = GetUserProfile();
 
             if(profile.Email.IsEmpty()) {
-                return new Account { Id = profile.Id };
+                //var account = GetAccountById(profile.Id) ?? new Account { Id = profile.Id };
+                //return account;
+                return GetAccountById(profile.Id);
             }
 
             return GetAccountByEmail(profile.Email);
@@ -55,7 +54,7 @@ namespace Starship.WebCore.Providers.Authentication {
 
             var profile = Context.User.GetUserProfile();
             
-            if(Context.Session.Keys.Contains(UserImpersonationKey)) {
+            if(Context.Session != null && Context.Session.Keys.Contains(UserImpersonationKey)) {
                 var account = GetAccountByEmail(profile.Email);
 
                 if(account != null && account.IsAdmin()) {
@@ -83,34 +82,50 @@ namespace Starship.WebCore.Providers.Authentication {
             return settings;
         }
 
-        private void OnAuthenticated(ClaimsPrincipal principal) {
+        private void OnAuthenticated(AuthenticationState state) {
 
-            var profile = principal.GetUserProfile();
-            var account = GetAccountByEmail(profile.Email);
+            var profile = state.Principal.GetUserProfile();
+
+            if(profile.Email.IsEmpty()) {
+                return;
+            }
+
+            state.Account = GetAccountByEmail(profile.Email);
                 
-            if(account == null) {
-                account = new Account {
+            if(state.Account == null) {
+                state.Account = new Account {
                     Id = profile.Id,
                     Owner = profile.Id,
-                    FirstName = profile.Name.Split(" ").FirstOrDefault(),
-                    LastName = profile.Name.Split(" ").LastOrDefault(),
                     Email = profile.Email,
                     Photo = profile.Photo
                 };
+                
+                if(!profile.Name.IsEmpty()) {
+                    if(profile.Name.Contains(" ")) {
+                        state.Account.FirstName = profile.Name.Split(" ").FirstOrDefault();
+                        state.Account.LastName = profile.Name.Split(" ").LastOrDefault();
+                    }
+                    else {
+                        state.Account.FirstName = profile.Name;
+                    }
+                }
+                else {
+                    state.Account.FirstName = profile.Email;
+                }
             }
             
             if(!string.IsNullOrEmpty(profile.Photo)) {
-                account.Photo = profile.Photo;
+                state.Account.Photo = profile.Photo;
             }
 
-            account.LastLogin = DateTime.UtcNow;
+            state.Account.LastLogin = DateTime.UtcNow;
 
-            AccountLoggedIn?.Invoke(account);
+            AccountLoggedIn?.Invoke(state);
 
-            Data.DefaultCollection.Save(account);
+            Data.DefaultCollection.Save(state.Account);
         }
         
-        public event Action<Account> AccountLoggedIn;
+        public event Action<AuthenticationState> AccountLoggedIn;
 
         public const string UserImpersonationKey = "impersonate";
 
@@ -123,7 +138,5 @@ namespace Starship.WebCore.Providers.Authentication {
         private readonly IsAuthenticationProvider Authentication;
 
         private readonly IHttpContextAccessor ContextAccessor;
-
-        private readonly AccountManagementSettings Settings;
     }
 }

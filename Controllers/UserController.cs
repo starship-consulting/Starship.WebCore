@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
@@ -22,46 +25,37 @@ namespace Starship.WebCore.Controllers {
             Accounts = serviceProvider.GetRequiredService<AccountManager>();
             Billing = serviceProvider.GetService<IsBillingProvider>();
             Data = serviceProvider.GetRequiredService<AzureDocumentDbProvider>();
+            HostingEnvironment = serviceProvider.GetRequiredService<IHostingEnvironment>();
         }
         
-        [Route("login")]
+        /*[Authorize, Route("signup")]
+        public IActionResult SignUp(string plan = "") {
+            
+            return File(System.IO.File.OpenRead(Path.Combine(HostingEnvironment.WebRootPath + "/index.html")), "text/html");
+            //return Redirect("/");
+        }*/
+
+        [Route("api/login")]
         public async Task Login(string returnUrl = "/") {
 
-            await HttpContext.ChallengeAsync("Auth0", new AuthenticationProperties {
-                RedirectUri = returnUrl
+            await HttpContext.ChallengeAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties {
+                RedirectUri = returnUrl/*,
+                Parameters = {
+                    {"login_hint", "signup"}
+                }*/
             });
         }
 
         [Authorize]
-        [Route("logout")]
+        [Route("api/logout")]
         public async Task Logout() {
 
-            await HttpContext.SignOutAsync("Auth0", new AuthenticationProperties {
+            await HttpContext.SignOutAsync(OpenIdConnectDefaults.AuthenticationScheme, new AuthenticationProperties {
                 RedirectUri = ""
             });
 
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         }
-        
-        /*[HttpPost, Route("api/user")]
-        public IActionResult SaveUser([FromBody] ExpandoObject entity) {
-
-            var account = Users.GetAccount();
-            var document = TryGetDocument(account, entity, type);
-
-            if(document == null || GetPermission(account, document) <= PermissionTypes.Partial) {
-                return StatusCode(404);
-            }
-            
-            var owner = document.GetPropertyValue<string>(Data.Settings.OwnerIdPropertyName);
-
-            if(owner.IsEmpty()) {
-                document.SetPropertyValue(Data.Settings.OwnerIdPropertyName, account.Id);
-            }
-            
-            var result = await Data.DefaultCollection.SaveAsync(document);
-            return result.ToJsonResult(Data.Settings.SerializerSettings);
-        }*/
         
         [Authorize]
         [HttpPost, Route("api/users/{id}")]
@@ -83,35 +77,14 @@ namespace Starship.WebCore.Controllers {
 
             return Ok(true);
         }
-
+        
         /*[Authorize]
-        [Route("api/users")]
-        public async Task<IActionResult> GetUsers() {
-
-            var currentUser = Accounts.GetAccount();
-
-            if(!currentUser.IsAdmin()) {
-                return Unauthorized();
-            }
-
-            var customers = Billing.GetCustomers();
-            var accounts = Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.ValidUntil == null).ToList();
-
-            return Ok(accounts.Select(account => {
-
-                var customer = customers.FirstOrDefault(each => each.Email.ToLower() == account.Email.ToLower());
-
-                if(customer != null) {
-
-                }
-                
-                return new {
-                    id = account.Id,
-                    email
-                };
-            }));
+        [Route("api/userinfo")]
+        public async Task<object> GetUserInfo() {
+            var accessToken = User.Claims.FirstOrDefault(c => c.Type == "access_token")?.Value;
+            return await Authentication.GetUserInfoAsync(accessToken);
         }*/
-
+        
         [Authorize]
         [Route("api/user")]
         public async Task<IActionResult> GetUserProfile() {
@@ -134,12 +107,6 @@ namespace Starship.WebCore.Controllers {
                 .Select(each => each.Owner)
                 .ToList();
 
-                /*.Select(each => new {
-                    id = each.Owner,
-                    name = each.Participants.First(participant => participant.Id == account.Email).Role
-                })
-                .ToList();*/
-
             var invitations = new List<object>();
 
             if(invitationIds.Any()) {
@@ -161,5 +128,7 @@ namespace Starship.WebCore.Controllers {
         private readonly IsBillingProvider Billing;
 
         private readonly AccountManager Accounts;
+
+        private readonly IHostingEnvironment HostingEnvironment;
     }
 }

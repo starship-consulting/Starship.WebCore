@@ -1,9 +1,18 @@
 ﻿using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.IO.Compression;
 using System.Linq;
+using System.Security.Claims;
+using System.Text;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Storage;
@@ -72,22 +81,134 @@ namespace Microsoft.Extensions.DependencyInjection {
             services.AddSingleton(settings);
         }
         
-        public static Auth0Provider UseAuth0(this IServiceCollection services, IConfiguration configuration, Action<Auth0Settings> configureSettings = null) {
-            var settings = ConfigurationMapper.Map<Auth0Settings>(configuration);
-            configureSettings?.Invoke(settings);
+        public static void UseAuth0(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<Auth0Settings>(configuration, services);
 
-            var provider = new Auth0Provider(settings);
+            var authProvider = new Auth0Provider();
+
+            var builder = services.AddAuthentication(options => {
+
+                if(settings.UseCookies) {
+                    options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                    options.DefaultSignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+                }
+            });
 
             if(settings.UseCookies) {
-                provider.AddAuth0CookieAuthentication(services);
+
+                builder = builder.AddCookie(options => {
+                    options.LoginPath = "/api/login";
+                    options.LogoutPath = "/api/logout";
+                    //options.AccessDeniedPath = "";
+                });
             }
             
             if(settings.UseJwtBearer) {
-                provider.AddAuth0BearerAuthentication(services);
+                
+                builder = builder.AddJwtBearer(options => {
+
+                    options.Authority = settings.Domain;
+                    options.Audience = settings.Identifier;
+                
+                    options.RequireHttpsMetadata = false;
+                    options.SaveToken = true;
+
+                    options.TokenValidationParameters = new TokenValidationParameters {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey =  new SymmetricSecurityKey(Encoding.ASCII.GetBytes(settings.ClientSecret)),
+                        //ValidIssuer = Settings.Issuer,
+                        ValidAudience = settings.Audience,
+                        ValidateIssuer = false,
+                        ValidateAudience = true
+                    };
+
+                    options.Events = new JwtBearerEvents {
+                    
+                        OnTokenValidated = context => {
+                            
+                            if (context.SecurityToken is JwtSecurityToken token) {
+                                if (context.Principal.Identity is ClaimsIdentity identity) {
+                                    identity.AddClaim(new Claim("access_token", token.RawData));
+
+                                    //var apiClient = new AuthenticationApiClient(settings.Domain.Replace("https://", ""));
+                                    //var userInfo = await apiClient.GetUserInfoAsync(token.RawData);
+                                }
+                            }
+                            
+                            authProvider.Authenticate(new AuthenticationState(context.Principal, context.Properties.RedirectUri));
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
             }
 
-            services.AddSingleton<IsAuthenticationProvider>(provider);
-            return provider;
+            builder.AddOpenIdConnect(options => {
+                
+                options.Authority = settings.Domain;
+                options.ClientId = settings.ClientId;
+                options.ClientSecret = settings.ClientSecret;
+                options.ResponseType = "code";
+                
+                options.Scope.Clear();
+                options.Scope.Add("openid");
+                options.Scope.Add("email");
+                options.Scope.Add("profile");
+
+                options.CallbackPath = new PathString("/signin-auth0");
+                options.ClaimsIssuer = "Auth0";
+                options.SaveTokens = true;
+
+                //options.RequireHttpsMetadata = false; // Disable in production
+                options.GetClaimsFromUserInfoEndpoint = true;
+                
+                options.TokenValidationParameters = new TokenValidationParameters {
+                    NameClaimType = "name"
+                };
+
+                options.Prompt = "select_account";
+
+                options.Events = new OpenIdConnectEvents {
+                    
+                    OnTokenValidated = (context) => {
+                        authProvider.Authenticate(new AuthenticationState(context.Principal, context.Properties.RedirectUri));
+                        return Task.CompletedTask;
+                    },
+
+                    OnRedirectToIdentityProvider = context => {
+                        //context.ProtocolMessage.SetParameter("audience", settings.Identifier);
+                        
+                        if(context.HttpContext.Request.Path.HasValue && context.HttpContext.Request.Path.Value.ToLower().EndsWith("signup")) {
+                            context.ProtocolMessage.SetParameter("signup", "1");
+                        }
+                        
+                        return Task.FromResult(0);
+                    },
+                    
+                    OnRedirectToIdentityProviderForSignOut = (context) => {
+
+                        var logoutUri = $"{settings.Domain}/v2/logout?client_id={settings.ClientId}";
+                        var postLogoutUri = context.Properties.RedirectUri;
+
+                        if (!string.IsNullOrEmpty(postLogoutUri)) {
+
+                            if (postLogoutUri.StartsWith("/")) {
+                                var request = context.Request;
+                                postLogoutUri = request.Scheme + "://" + request.Host + request.PathBase + postLogoutUri;
+                            }
+
+                            logoutUri += $"&returnTo={Uri.EscapeDataString(postLogoutUri)}";
+                        }
+
+                        context.Response.Redirect(logoutUri);
+                        context.HandleResponse();
+
+                        return Task.CompletedTask;
+                    }
+                };
+            });
+
+            services.AddSingleton<IsAuthenticationProvider>(authProvider);
         }
 
         public static void UseChargeBee(this IServiceCollection services, IConfiguration configuration) {

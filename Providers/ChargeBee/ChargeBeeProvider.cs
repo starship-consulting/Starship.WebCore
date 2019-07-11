@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Web;
 using ChargeBee.Api;
 using ChargeBee.Exceptions;
 using ChargeBee.Models;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Core.Extensions;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
@@ -29,8 +31,19 @@ namespace Starship.WebCore.Providers.ChargeBee {
             settings["chargeBee"] = Settings.Site;
         }
 
-        private void Apply(Account account) {
-            GetSubscription(account);
+        private void Apply(AuthenticationState state) {
+            
+            var plan = string.Empty;
+
+            if(state.RedirectUri.Contains("?")) {
+                var query = HttpUtility.ParseQueryString(state.RedirectUri.Split("?").Last());
+
+                if(query.AllKeys.Any(key => key == "plan")) {
+                    plan = query["plan"];
+                }
+            }
+
+            GetSubscription(state.Account, plan);
         }
 
         public List<Plan> GetPlans() {
@@ -79,27 +92,39 @@ namespace Starship.WebCore.Providers.ChargeBee {
             }
         }
         
-        public Subscription GetSubscription(Account account) {
+        public Subscription GetSubscription(Account account, string planId = "") {
             
-            Subscription subscription;
-
             var chargebee = account.GetComponent<ChargeBeeComponent>();
+            var customer = GetOrCreateCustomer(chargebee.ChargeBeeId, account.FirstName, account.LastName, account.Email);
+            var plan = GetPlans().FirstOrDefault(each => each.Id.ToLower() == planId.ToLower());
+            var subscription = GetPrimarySubscription(customer);
+            
+            if(subscription == null && plan?.TrialPeriod != null) {
+                subscription = GetOrCreateSubscription(customer, planId);
+            }
 
-            if(string.IsNullOrEmpty(chargebee.ChargeBeeId)) {
-                subscription = InitializeSubscription(account.FirstName, account.LastName, account.Email);
+            if(subscription != null) {
+                chargebee.PlanId = subscription.PlanId;
+                chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
+                chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
             }
             else {
-                var customer = GetCustomer(chargebee.ChargeBeeId);
-                subscription = GetOrCreateSubscription(customer);
+                chargebee.PlanId = planId;
+                chargebee.IsTrial = false;
+                chargebee.SubscriptionEndDate = DateTime.UtcNow;
             }
             
-            chargebee.ChargeBeeId = subscription.CustomerId;
-            chargebee.IsTrial = subscription.TrialStart != null && subscription.TrialEnd != null && subscription.TrialEnd > DateTime.UtcNow;
-            chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
+            chargebee.ChargeBeeId = customer.Id;
 
             account.SetComponent(chargebee);
 
             return subscription;
+        }
+
+        public Customer GetCustomer(string customerId) {
+            return Customer.Retrieve(customerId)
+                .Request()
+                .Customer;
         }
 
         private List<ListResult.Entry> GetResults<T>(T list) where T : ListRequestBase<T> {
@@ -121,34 +146,31 @@ namespace Starship.WebCore.Providers.ChargeBee {
             return results;
         }
 
-        private Subscription InitializeSubscription(string firstName, string lastName, string email) {
+        private Customer GetOrCreateCustomer(string customerId, string firstName, string lastName, string email) {
 
-            Customer customer;
+            Customer customer = null;
 
-            try {
-                customer = FindCustomerByEmail(email);
-
-                if(customer != null) {
-                    return GetOrCreateSubscription(customer);
+            if(!string.IsNullOrEmpty(customerId)) {
+                try {
+                    customer = GetCustomer(customerId);
+                }
+                catch(InvalidRequestException) {
                 }
             }
-            catch(InvalidRequestException) {
-            }
-            
-            customer = CreateCustomer(firstName, lastName, email);
-            return GetOrCreateSubscription(customer);
-        }
-        
-        private List<ListResult.Entry> HostedPages() {
-            return HostedPage.List()
-                .Request()
-                .List;
-        }
 
-        public Customer GetCustomer(string customerId) {
-            return Customer.Retrieve(customerId)
-                .Request()
-                .Customer;
+            if(customer == null) {
+                try {
+                    customer = FindCustomerByEmail(email);
+                }
+                catch(InvalidRequestException) {
+                }
+            }
+
+            if(customer == null) {
+                customer = CreateCustomer(firstName, lastName, email);
+            }
+
+            return customer;
         }
 
         public List<Subscription> GetSubscriptions(Customer customer) {
@@ -165,7 +187,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
             return new List<Subscription>();
         }
 
-        public Subscription GetOrCreateSubscription(Customer customer) {
+        public Subscription GetPrimarySubscription(Customer customer) {
 
             var subscriptions = GetSubscriptions(customer);
             
@@ -173,10 +195,31 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 return subscriptions.First();
             }
 
-            return Subscription.CreateForCustomer(customer.Id)
-                .PlanId(Settings.DefaultSubscriptionId)
-                .Request()
-                .Subscription;
+            return null;
+        }
+
+        public Subscription GetOrCreateSubscription(Customer customer, string planId = "") {
+
+            var subscription = GetPrimarySubscription(customer);
+
+            if(subscription != null) {
+                return subscription;
+            }
+            
+            return CreateSubscription(customer.Id, ResolvePlanId(planId));
+        }
+
+        private string ResolvePlanId(string planId = "") {
+
+            if(planId.IsEmpty()) {
+                planId = Settings.DefaultSubscriptionId;
+            }
+
+            return planId;
+        }
+
+        public Subscription CreateSubscription(string customerId, string planId) {
+            return Subscription.CreateForCustomer(customerId).PlanId(planId).Request().Subscription;
         }
 
         public Customer CreateCustomer(string firstName, string lastName, string email) {
@@ -196,6 +239,24 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .Request();
 
             return session.PortalSession.GetJToken();
+        }
+
+        public JToken GetCheckoutToken(Account account, string plan = "") {
+            
+            var planId = ResolvePlanId(plan);
+
+            var result = HostedPage.CheckoutNew()
+                .CustomerEmail(account.Email)
+                .CustomerFirstName(account.FirstName)
+                .CustomerLastName(account.LastName)
+                .SubscriptionPlanId(planId)
+                .BillingAddressFirstName(account.FirstName)
+                .BillingAddressLastName(account.LastName)
+                .BillingAddressCountry("US")
+                .Embed(true)
+                .Request();
+            
+            return result.HostedPage.GetJToken();
         }
 
         private Customer FindCustomerByEmail(string email) {

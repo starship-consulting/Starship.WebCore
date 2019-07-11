@@ -95,7 +95,8 @@ namespace Starship.WebCore.Controllers {
         public IActionResult Get([FromRoute] string type, [FromQuery] DataQueryParameters parameters) {
             var account = GetAccount();
             var query = GetData(account, type, parameters);
-            return query.ToArray().ToJsonResult(Data.Settings.SerializerSettings);
+            var items = query.ToArray();
+            return items.ToJsonResult(Data.Settings.SerializerSettings);
         }
 
         [HttpGet, Route("api/data/{type}/{id}")]
@@ -294,10 +295,12 @@ namespace Starship.WebCore.Controllers {
                 return accounts.ToList();
             }
 
-            var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == type);
+            var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type.ToLower() == type);
             var claims = new List<string> { account.Id, GlobalDataSettings.SystemOwnerName };
             
-            //if(!account.IsAdmin()) {
+            if(GlobalDataSettings.MultiTenant) {
+
+                //if(!account.IsAdmin()) {
                 if(type == "task" || type == "field" || type == "goalstrategy" || type == "goal" || type == "dataset") {
                     query = query.Where(each => claims.Contains(each.Owner) || participants.Contains(each.Owner));
                 }
@@ -310,12 +313,13 @@ namespace Starship.WebCore.Controllers {
                         || contact.Participants.Any(participant => participant.Id == account.Id));
                 }
                 else if(type == "group") {
-                    query = query.Where(group => group.Participants.Any(participant => participant.Id == account.Id));
+                    query = query.Where(group => group.Owner == account.Id || group.Participants.Any(participant => participant.Id == account.Id));
                 }
                 else {
                     query = query.Where(each => claims.Contains(each.Owner) || each.Permissions.Any(permission => permission.Subject == account.Id && participants.Contains(each.Owner)));
                 }
-            //}
+                //}
+            }
             
             query = parameters.Apply(query);
             

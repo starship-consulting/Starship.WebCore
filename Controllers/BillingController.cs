@@ -88,15 +88,25 @@ namespace Starship.WebCore.Controllers {
             return Ok(subscriptions);
         }
 
-        [Authorize, HttpGet, Route("api/billing")]
-        public async Task<IActionResult> Get() {
+        [Authorize, HttpGet, Route("api/billing/portal")]
+        public IActionResult GetPortalSessionToken() {
+
             var account = Users.GetAccount();
-            var subscriber = Billing.GetSubscription(account);
+            var chargebee = account.GetComponent<ChargeBeeComponent>();
 
-            await Data.DefaultCollection.SaveAsync(account);
+            //var subscriber = Billing.GetSubscription(account);
 
-            var session = Billing.GetSessionToken(subscriber.CustomerId);
-            return Ok(session);
+            //await Data.DefaultCollection.SaveAsync(account);
+
+            //var session = Billing.GetSessionToken(subscriber.CustomerId);
+
+            return Ok(Billing.GetSessionToken(chargebee.ChargeBeeId));
+        }
+
+        [Authorize, HttpGet, Route("api/billing/checkout")]
+        public IActionResult Checkout([FromQuery] string plan) {
+            var account = Users.GetAccount();
+            return Ok(Billing.GetCheckoutToken(account, plan));
         }
 
         private void DeleteDuplicates() {

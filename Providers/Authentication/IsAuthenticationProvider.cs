@@ -1,9 +1,12 @@
 ﻿using System;
-using System.Security.Claims;
+using System.Threading.Tasks;
+using Auth0.AuthenticationApi.Models;
 
 namespace Starship.WebCore.Providers.Authentication {
     public interface IsAuthenticationProvider {
 
-        event Action<ClaimsPrincipal> Authenticated;
+        Task<UserInfo> GetUserInfoAsync(string accessToken);
+
+        event Action<AuthenticationState> Authenticated;
     }
 }
