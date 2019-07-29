@@ -1,13 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
@@ -24,16 +22,8 @@ namespace Starship.WebCore.Controllers {
         public UserController(IServiceProvider serviceProvider) {
             Accounts = serviceProvider.GetRequiredService<AccountManager>();
             Billing = serviceProvider.GetService<IsBillingProvider>();
-            Data = serviceProvider.GetRequiredService<AzureDocumentDbProvider>();
-            HostingEnvironment = serviceProvider.GetRequiredService<IHostingEnvironment>();
+            Data = serviceProvider.GetRequiredService<AzureCosmosDbProvider>();
         }
-        
-        /*[Authorize, Route("signup")]
-        public IActionResult SignUp(string plan = "") {
-            
-            return File(System.IO.File.OpenRead(Path.Combine(HostingEnvironment.WebRootPath + "/index.html")), "text/html");
-            //return Redirect("/");
-        }*/
 
         [Route("api/login")]
         public async Task Login(string returnUrl = "/") {
@@ -123,12 +113,10 @@ namespace Starship.WebCore.Controllers {
             return new JsonResult(new { account, settings, invitations }, Data.Settings.SerializerSettings);
         }
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
 
         private readonly IsBillingProvider Billing;
 
         private readonly AccountManager Accounts;
-
-        private readonly IHostingEnvironment HostingEnvironment;
     }
 }

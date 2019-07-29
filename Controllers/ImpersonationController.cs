@@ -8,9 +8,9 @@ namespace Starship.WebCore.Controllers {
     public class ImpersonationController : Controller {
         
         [Authorize]
-        [HttpGet("impersonate/{email?}")]
+        [HttpGet("api/impersonate")]
         [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
-        public IActionResult Impersonate([FromRoute] string email = "") {
+        public IActionResult Impersonate([FromQuery] string email) {
 
             if(string.IsNullOrEmpty(email)) {
                 HttpContext.Session.Remove("impersonate");

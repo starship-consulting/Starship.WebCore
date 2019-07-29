@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
@@ -15,7 +16,7 @@ namespace Starship.WebCore.Providers.Authentication {
     public class AccountManager : IDisposable {
         
         public AccountManager(IServiceProvider provider) {
-            Data = provider.GetService<AzureDocumentDbProvider>();
+            Data = provider.GetService<AzureCosmosDbProvider>();
             ContextAccessor = provider.GetService<IHttpContextAccessor>();
             Authentication = provider.GetService<IsAuthenticationProvider>();
             Authentication.Authenticated += OnAuthenticated;
@@ -29,6 +30,10 @@ namespace Starship.WebCore.Providers.Authentication {
             }
         }
         
+        public Account GetAccount(UserProfile profile) {
+            return profile.Email.IsEmpty() ? GetAccountById(profile.Id) : GetAccountByEmail(profile.Email);
+        }
+
         public Account GetAccountByEmail(string email) {
             email = email.ToLower();
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();
@@ -38,16 +43,12 @@ namespace Starship.WebCore.Providers.Authentication {
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Id == id).ToList().FirstOrDefault();
         }
 
+        public Account GetAccount(ClaimsPrincipal principal) {
+            return GetAccount(principal.GetUserProfile());
+        }
+
         public Account GetAccount() {
-            var profile = GetUserProfile();
-
-            if(profile.Email.IsEmpty()) {
-                //var account = GetAccountById(profile.Id) ?? new Account { Id = profile.Id };
-                //return account;
-                return GetAccountById(profile.Id);
-            }
-
-            return GetAccountByEmail(profile.Email);
+            return GetAccount(GetUserProfile());
         }
 
         public UserProfile GetUserProfile() {
@@ -55,7 +56,7 @@ namespace Starship.WebCore.Providers.Authentication {
             var profile = Context.User.GetUserProfile();
             
             if(Context.Session != null && Context.Session.Keys.Contains(UserImpersonationKey)) {
-                var account = GetAccountByEmail(profile.Email);
+                var account = GetAccount(profile);
 
                 if(account != null && account.IsAdmin()) {
                     var impersonate = Context.Session.GetString(UserImpersonationKey);
@@ -86,11 +87,11 @@ namespace Starship.WebCore.Providers.Authentication {
 
             var profile = state.Principal.GetUserProfile();
 
-            if(profile.Email.IsEmpty()) {
+            /*if(profile.Email.IsEmpty()) {
                 return;
-            }
+            }*/
 
-            state.Account = GetAccountByEmail(profile.Email);
+            state.Account = GetAccount(state.Principal);
                 
             if(state.Account == null) {
                 state.Account = new Account {
@@ -122,7 +123,7 @@ namespace Starship.WebCore.Providers.Authentication {
 
             AccountLoggedIn?.Invoke(state);
 
-            Data.DefaultCollection.Save(state.Account);
+            var account = Data.DefaultCollection.Save(state.Account);
         }
         
         public event Action<AuthenticationState> AccountLoggedIn;
@@ -133,7 +134,7 @@ namespace Starship.WebCore.Providers.Authentication {
 
         private HttpContext Context => ContextAccessor.HttpContext;
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
 
         private readonly IsAuthenticationProvider Authentication;
 

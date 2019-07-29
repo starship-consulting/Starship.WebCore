@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Linq;
-using Microsoft.Azure.Documents.SystemFunctions;
+using Microsoft.Azure.Cosmos.Linq;
 using Starship.Azure.Data;
+using Starship.Core.Extensions;
 
 namespace Starship.WebCore.Models {
     public class DataQueryParameters {
         
         public IQueryable<T> Apply<T>(IQueryable<T> query) where T : CosmosDocument {
-
+            
             if(IncludeInvalidated == null) {
                 query = query.Where(each => !each.ValidUntil.IsDefined() || each.ValidUntil == null || each.ValidUntil > DateTime.UtcNow);
             }
@@ -17,6 +18,10 @@ namespace Starship.WebCore.Models {
 
             if(Skip > 0) {
                 query = query.Skip(Skip);
+            }
+
+            if(!string.IsNullOrEmpty(Order)) {
+                query = query.OrderBy(Order);
             }
 
             if(Top > 0) {
@@ -33,6 +38,8 @@ namespace Starship.WebCore.Models {
         public string Filter { get; set; }
 
         public string Partition { get; set; }
+
+        public string Order { get; set; }
 
         public int Skip { get; set; }
 

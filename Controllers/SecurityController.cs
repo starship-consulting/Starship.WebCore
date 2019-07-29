@@ -4,9 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Documents;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Core.Data;
 using Starship.Core.Email;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Providers.Authentication;
@@ -16,7 +16,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class SecurityController : ApiController {
         
-        public SecurityController(AccountManager users, AzureDocumentDbProvider data, EmailClient email, DataSharingSettings dataSettings, SiteSettings siteSettings) {
+        public SecurityController(AccountManager users, AzureCosmosDbProvider data, EmailClient email, DataSharingSettings dataSettings, SiteSettings siteSettings) {
             Users = users;
             Data = data;
             EmailClient = email;
@@ -24,7 +24,7 @@ namespace Starship.WebCore.Controllers {
             SiteSettings = siteSettings;
         }
 
-        [HttpPost, Route("api/policy")]
+        /*[HttpPost, Route("api/policy")]
         public async Task<IActionResult> SavePolicies([FromBody] List<CosmosPolicy> policies) {
 
             var account = Users.GetAccount();
@@ -34,7 +34,7 @@ namespace Starship.WebCore.Controllers {
             await Data.DefaultCollection.SaveAsync(account);
 
             return Ok();
-        }
+        }*/
         
         [HttpGet, Route("api/access/{id}")]
         public async Task<IActionResult> AcceptAccess([FromRoute] string id) {
@@ -54,8 +54,8 @@ namespace Starship.WebCore.Controllers {
                     account.AddParticipant(id);
                     otherAccount.AddParticipant(account.Id);
 
-                    var changeset = new List<Resource> { account, otherAccount };
-                    await Data.DefaultCollection.CallProcedure<Document>(Data.Settings.SaveProcedureName, changeset);
+                    var changeset = new List<CosmosResource> { account, otherAccount };
+                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, changeset);
 
                     await Data.DefaultCollection.DeleteAsync(existing.Id);
                 }
@@ -99,7 +99,7 @@ namespace Starship.WebCore.Controllers {
                 .FirstOrDefault();
 
             if(invitation != null) {
-                await Data.DefaultCollection.DeleteAsync(invitation);
+                await Data.DefaultCollection.DeleteAsync(invitation.Id);
             }
         }
         
@@ -141,7 +141,7 @@ namespace Starship.WebCore.Controllers {
             return Ok(true);
         }
         
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
         
         private readonly AccountManager Users;
 

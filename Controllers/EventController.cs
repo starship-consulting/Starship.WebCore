@@ -16,7 +16,7 @@ namespace Starship.WebCore.Controllers {
     [Authorize]
     public class EventController : ApiController {
 
-        public EventController(AccountManager users, AzureDocumentDbProvider data) {
+        public EventController(AccountManager users, AzureCosmosDbProvider data) {
             Users = users;
             Data = data;
         }
@@ -147,7 +147,7 @@ namespace Starship.WebCore.Controllers {
             return participants.Distinct().ToList();
         }
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
 
         private readonly AccountManager Users;
     }

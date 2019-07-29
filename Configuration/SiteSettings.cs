@@ -8,7 +8,7 @@ namespace Starship.WebCore.Configuration {
         public string Url { get; set; }
 
         public string Environment { get; set; }
-
+        
         public bool IsProduction() {
             return Environment.ToLower() == "production";
         }

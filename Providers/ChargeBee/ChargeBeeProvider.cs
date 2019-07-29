@@ -95,7 +95,24 @@ namespace Starship.WebCore.Providers.ChargeBee {
         public Subscription GetSubscription(Account account, string planId = "") {
             
             var chargebee = account.GetComponent<ChargeBeeComponent>();
-            var customer = GetOrCreateCustomer(chargebee.ChargeBeeId, account.FirstName, account.LastName, account.Email);
+            //var customer = GetOrCreateCustomer(chargebee.ChargeBeeId, account.FirstName, account.LastName, account.Email);
+
+            Customer customer = null;
+
+            if(!chargebee.ChargeBeeId.IsEmpty()) {
+                customer = GetCustomer(chargebee.ChargeBeeId);
+            }
+
+            if(customer == null || customer.Email.ToLower() != account.Email.ToLower()) {
+                customer = FindCustomerByEmail(account.Email.ToLower());
+            }
+
+            if(customer == null) {
+                chargebee.Clear(planId);
+                account.SetComponent(chargebee);
+                return null;
+            }
+
             var plan = GetPlans().FirstOrDefault(each => each.Id.ToLower() == planId.ToLower());
             var subscription = GetPrimarySubscription(customer);
             
@@ -109,22 +126,22 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 chargebee.SubscriptionEndDate = subscription.CurrentTermEnd ?? subscription.TrialEnd ?? DateTime.UtcNow;
             }
             else {
-                chargebee.PlanId = planId;
-                chargebee.IsTrial = false;
-                chargebee.SubscriptionEndDate = DateTime.UtcNow;
+                chargebee.Clear(planId);
             }
             
             chargebee.ChargeBeeId = customer.Id;
-
             account.SetComponent(chargebee);
 
             return subscription;
         }
 
         public Customer GetCustomer(string customerId) {
-            return Customer.Retrieve(customerId)
-                .Request()
-                .Customer;
+            try {
+                return Customer.Retrieve(customerId).Request().Customer;
+            }
+            catch(Exception) {
+                return null;
+            }
         }
 
         private List<ListResult.Entry> GetResults<T>(T list) where T : ListRequestBase<T> {
@@ -145,7 +162,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
 
             return results;
         }
-
+        
         private Customer GetOrCreateCustomer(string customerId, string firstName, string lastName, string email) {
 
             Customer customer = null;
@@ -303,7 +320,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
             return token;
         }
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
 
         private readonly ChargeBeeSettings Settings;
 

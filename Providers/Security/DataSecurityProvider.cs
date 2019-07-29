@@ -2,16 +2,16 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Azure.Documents;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Core.Data;
 using Starship.WebCore.Interfaces;
 
 namespace Starship.WebCore.Providers.Security {
 
     public class DataSecurityProvider : IsDataInterceptor {
         
-        public DataSecurityProvider(AzureDocumentDbProvider data) {
+        public DataSecurityProvider(AzureCosmosDbProvider data) {
             Data = data;
         }
 
@@ -30,7 +30,7 @@ namespace Starship.WebCore.Providers.Security {
                 }
 
                 if(existingMembers.Any()) {
-                    await Data.DefaultCollection.CallProcedure<Document>(Data.Settings.SaveProcedureName, existingMembers.Cast<Resource>().ToList());
+                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, existingMembers);
                 }
             }
         }
@@ -68,7 +68,7 @@ namespace Starship.WebCore.Providers.Security {
                 }
 
                 if(changeset.Any()) {
-                    await Data.DefaultCollection.CallProcedure<Document>(Data.Settings.SaveProcedureName, changeset.Cast<Resource>().ToList());
+                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, changeset);
                 }
             }
         }
@@ -77,6 +77,6 @@ namespace Starship.WebCore.Providers.Security {
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account");
         }
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
     }
 }

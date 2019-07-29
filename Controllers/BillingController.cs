@@ -14,7 +14,7 @@ namespace Starship.WebCore.Controllers {
     
     public class BillingController : ApiController {
 
-        public BillingController(IsBillingProvider billing, AccountManager users, AzureDocumentDbProvider data) {
+        public BillingController(IsBillingProvider billing, AccountManager users, AzureCosmosDbProvider data) {
             Billing = billing;
             Users = users;
             Data = data;
@@ -129,7 +129,7 @@ namespace Starship.WebCore.Controllers {
             }
         }
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
         
         private readonly IsBillingProvider Billing;
 

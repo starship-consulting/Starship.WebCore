@@ -48,9 +48,9 @@ namespace Microsoft.Extensions.DependencyInjection {
             services.AddSingleton<AccountManager>();
         }
 
-        public static AzureDocumentDbProvider UseCosmosDb(this IServiceCollection services, IConfiguration configuration) {
+        public static AzureCosmosDbProvider UseCosmosDb(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<DataSettings>(configuration);
-            var provider = new AzureDocumentDbProvider(settings);
+            var provider = new AzureCosmosDbProvider(settings);
             services.AddSingleton(provider);
             return provider;
         }

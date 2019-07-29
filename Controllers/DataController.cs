@@ -1,39 +1,39 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Dynamic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using Community.OData.Linq;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Starship.Azure.Data;
 using Starship.Azure.Json;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Core.Data;
 using Starship.Core.Extensions;
 using Starship.Core.Security;
 using Starship.Data.Configuration;
+using Starship.WebCore.ActionFilters;
+using Starship.WebCore.Configuration;
 using Starship.WebCore.Extensions;
 using Starship.WebCore.Interfaces;
 using Starship.WebCore.Models;
 using Starship.WebCore.Providers.Authentication;
 
 namespace Starship.WebCore.Controllers {
-
-    [Authorize]
+    
+    [ApiAuthorizationFilter]
     public class DataController : ApiController {
         
         public DataController(IServiceProvider serviceProvider) {
             Users = serviceProvider.GetRequiredService<AccountManager>();
-            Data = serviceProvider.GetRequiredService<AzureDocumentDbProvider>();
+            Data = serviceProvider.GetRequiredService<AzureCosmosDbProvider>();
             Interceptor = serviceProvider.GetService<IsDataInterceptor>();
+            Settings = serviceProvider.GetService<SiteSettings>();
         }
         
         /*[HttpGet, Route("api/log")]
@@ -54,7 +54,7 @@ namespace Starship.WebCore.Controllers {
 
         [HttpGet, Route("api/cleardata")]
         public async Task ClearData() {
-
+            
             var account = GetAccount();
             var documents = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == account.Id);
             var timestamp = Convert.ToInt32(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1)).TotalSeconds);
@@ -158,7 +158,7 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Save([FromBody] ExpandoObject[] entities) {
 
             var account = GetAccount();
-            var resources = new List<Resource>();
+            var resources = new List<CosmosResource>();
 
             foreach(var entity in entities) {
                 var document = TryUpdateResource(account, entity);
@@ -174,7 +174,7 @@ namespace Starship.WebCore.Controllers {
                 resources.Add(document);
             }
 
-            var result = await Data.DefaultCollection.CallProcedure<Document>(Data.Settings.SaveProcedureName, resources);
+            var result = await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, resources);
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }
 
@@ -207,9 +207,10 @@ namespace Starship.WebCore.Controllers {
             };
             
             var serialized = JsonConvert.SerializeObject(source, settings);
+            var model = JsonConvert.DeserializeObject<CosmosDocument>(serialized);
 
-            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
-                var model = JsonSerializable.LoadFrom<CosmosDocument>(stream);
+            //using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
+                //var model = JsonSerializable.LoadFrom<CosmosDocument>(stream);
 
                 if(model.Type.IsEmpty()) {
                     model.Type = defaultType;
@@ -265,7 +266,7 @@ namespace Starship.WebCore.Controllers {
                 }
 
                 return model;
-            }
+            //}
         }
         
         private IEnumerable<CosmosDocument> GetData(Account account, string type, DataQueryParameters parameters = null) {
@@ -282,25 +283,23 @@ namespace Starship.WebCore.Controllers {
 
             if(type == "account") {
 
-                var accounts = GetAccounts();
+                var accounts = Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account");
 
                 // Non-admin users can see participating accounts and group member accounts
                 if(!account.IsAdmin()) {
-                    
                     accounts = accounts.Where(each => each.Id == account.Id || participants.Contains(each.Id));
                 }
 
                 accounts = parameters.Apply(accounts);
-
+                
                 return accounts.ToList();
             }
 
             var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type.ToLower() == type);
             var claims = new List<string> { account.Id, GlobalDataSettings.SystemOwnerName };
             
-            if(GlobalDataSettings.MultiTenant) {
-
-                //if(!account.IsAdmin()) {
+            if(GlobalDataSettings.MultiTenant && !account.IsAdmin()) {
+                
                 if(type == "task" || type == "field" || type == "goalstrategy" || type == "goal" || type == "dataset") {
                     query = query.Where(each => claims.Contains(each.Owner) || participants.Contains(each.Owner));
                 }
@@ -318,7 +317,6 @@ namespace Starship.WebCore.Controllers {
                 else {
                     query = query.Where(each => claims.Contains(each.Owner) || each.Permissions.Any(permission => permission.Subject == account.Id && participants.Contains(each.Owner)));
                 }
-                //}
             }
             
             query = parameters.Apply(query);
@@ -339,10 +337,6 @@ namespace Starship.WebCore.Controllers {
             participants.AddRange(groupParticipants);
             return participants.Distinct().ToList();
         }
-
-        private IQueryable<Account> GetAccounts() {
-            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.ValidUntil == null);
-        }
         
         private Account GetAccount() {
             return Users.GetAccount();
@@ -350,8 +344,10 @@ namespace Starship.WebCore.Controllers {
         
         private readonly IsDataInterceptor Interceptor;
 
-        private readonly AzureDocumentDbProvider Data;
+        private readonly AzureCosmosDbProvider Data;
 
         private readonly AccountManager Users;
+
+        private readonly SiteSettings Settings;
     }
 }
