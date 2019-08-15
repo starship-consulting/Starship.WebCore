@@ -109,7 +109,7 @@ namespace Microsoft.Extensions.DependencyInjection {
                 builder = builder.AddJwtBearer(options => {
 
                     options.Authority = settings.Domain;
-                    options.Audience = settings.Identifier;
+                    options.Audience = settings.Audience;
                 
                     options.RequireHttpsMetadata = false;
                     options.SaveToken = true;

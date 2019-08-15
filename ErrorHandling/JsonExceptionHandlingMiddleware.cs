@@ -24,7 +24,7 @@ namespace Starship.WebCore.ErrorHandling {
 
         private static Task HandleExceptionAsync(HttpContext context, Exception ex) {
             var code = HttpStatusCode.InternalServerError;
-            var result = JsonConvert.SerializeObject(new {error = ex.Message});
+            var result = JsonConvert.SerializeObject(new {error = ex.Message, trace = ex.ToString() });
             context.Response.ContentType = "application/json";
             context.Response.StatusCode = (int) code;
             return context.Response.WriteAsync(result);

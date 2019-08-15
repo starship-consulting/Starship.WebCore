@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
-using Starship.Core.Data;
 using Starship.WebCore.Interfaces;
 
 namespace Starship.WebCore.Providers.Security {
@@ -30,7 +29,7 @@ namespace Starship.WebCore.Providers.Security {
                 }
 
                 if(existingMembers.Any()) {
-                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, existingMembers);
+                    await Data.DefaultCollection.CallProcedure(Data.Settings.SaveProcedureName, existingMembers);
                 }
             }
         }
@@ -68,7 +67,7 @@ namespace Starship.WebCore.Providers.Security {
                 }
 
                 if(changeset.Any()) {
-                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, changeset);
+                    await Data.DefaultCollection.CallProcedure(Data.Settings.SaveProcedureName, changeset);
                 }
             }
         }

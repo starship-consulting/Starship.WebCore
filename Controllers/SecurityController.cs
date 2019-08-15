@@ -24,7 +24,7 @@ namespace Starship.WebCore.Controllers {
             SiteSettings = siteSettings;
         }
 
-        /*[HttpPost, Route("api/policy")]
+        [HttpPost, Route("api/policy")]
         public async Task<IActionResult> SavePolicies([FromBody] List<CosmosPolicy> policies) {
 
             var account = Users.GetAccount();
@@ -34,7 +34,7 @@ namespace Starship.WebCore.Controllers {
             await Data.DefaultCollection.SaveAsync(account);
 
             return Ok();
-        }*/
+        }
         
         [HttpGet, Route("api/access/{id}")]
         public async Task<IActionResult> AcceptAccess([FromRoute] string id) {
@@ -55,7 +55,7 @@ namespace Starship.WebCore.Controllers {
                     otherAccount.AddParticipant(account.Id);
 
                     var changeset = new List<CosmosResource> { account, otherAccount };
-                    await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, changeset);
+                    await Data.DefaultCollection.CallProcedure(Data.Settings.SaveProcedureName, changeset);
 
                     await Data.DefaultCollection.DeleteAsync(existing.Id);
                 }

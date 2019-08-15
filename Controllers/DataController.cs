@@ -1,10 +1,10 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
-using Community.OData.Linq;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
@@ -91,17 +91,39 @@ namespace Starship.WebCore.Controllers {
             return query.ToArray().ToJsonResult(Data.Settings.SerializerSettings);
         }*/
         
-        [HttpGet, Route("api/data/{type}")]
-        public IActionResult Get([FromRoute] string type, [FromQuery] DataQueryParameters parameters) {
+        [HttpGet, Route("api/data/{types}")]
+        public async Task<object> Get([FromRoute] string types, [FromQuery] DataQueryParameters parameters) {
+            
             var account = GetAccount();
-            var query = GetData(account, type, parameters);
-            var items = query.ToArray();
-            return items.ToJsonResult(Data.Settings.SerializerSettings);
+
+            if(!types.Contains(",")) {
+                var query = parameters.Apply(GetData(account, types));
+                var data = query.ToList();
+                return data.ToJsonResult(Data.Settings.SerializerSettings);
+            }
+
+            var typeList = types.ToLower().Split(",").ToList();
+            var results = new ConcurrentDictionary<string, List<CosmosDocument>>();
+            var tasks = new List<Task>();
+            
+            foreach(var type in typeList) {
+                
+                var task = Task.Factory.StartNew(()=> {
+                    var query = GetData(account, type);
+                    var items = query.ToList();
+                    results.AddOrUpdate(type, items, (updateType, updateItems) => updateItems);
+                });
+
+                tasks.Add(task);
+            }
+
+            await Task.WhenAll(tasks);
+            
+            return new JsonResult(results, Data.Settings.SerializerSettings);
         }
 
         [HttpGet, Route("api/data/{type}/{id}")]
         public IActionResult Find([FromRoute] string type, [FromRoute] string id) {
-
             var account = GetAccount();
             var entity = Data.DefaultCollection.Get<CosmosDocument>()
                 .Where(each => each.Type == type && each.Id == id)
@@ -174,7 +196,7 @@ namespace Starship.WebCore.Controllers {
                 resources.Add(document);
             }
 
-            var result = await Data.DefaultCollection.CallProcedure<CosmosResource>(Data.Settings.SaveProcedureName, resources);
+            var result = await Data.DefaultCollection.CallProcedure<List<CosmosResource>>(Data.Settings.SaveProcedureName, resources);
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }
 
@@ -208,7 +230,7 @@ namespace Starship.WebCore.Controllers {
             
             var serialized = JsonConvert.SerializeObject(source, settings);
             var model = JsonConvert.DeserializeObject<CosmosDocument>(serialized);
-
+            
             //using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
                 //var model = JsonSerializable.LoadFrom<CosmosDocument>(stream);
 
@@ -242,7 +264,7 @@ namespace Starship.WebCore.Controllers {
                             .ToList();
 
                         foreach(var property in editableProperties) {
-                            entity.SetPropertyValue(property.Key, property.Value);
+                            entity.Set(property.Key, property.Value);
                         }
                             
                         entity.UpdatedBy = account.Id;
@@ -269,11 +291,7 @@ namespace Starship.WebCore.Controllers {
             //}
         }
         
-        private IEnumerable<CosmosDocument> GetData(Account account, string type, DataQueryParameters parameters = null) {
-            
-            if(parameters == null) {
-                parameters = new DataQueryParameters();
-            }
+        private IQueryable<CosmosDocument> GetData(Account account, string type) {
 
             //if(parameters.Partition == "self") {
             //    parameters.Partition = account.Id;
@@ -289,10 +307,8 @@ namespace Starship.WebCore.Controllers {
                 if(!account.IsAdmin()) {
                     accounts = accounts.Where(each => each.Id == account.Id || participants.Contains(each.Id));
                 }
-
-                accounts = parameters.Apply(accounts);
                 
-                return accounts.ToList();
+                return accounts;
             }
 
             var query = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type.ToLower() == type);
@@ -319,22 +335,47 @@ namespace Starship.WebCore.Controllers {
                 }
             }
             
-            query = parameters.Apply(query);
-            
-            if(!string.IsNullOrEmpty(parameters.Filter)) {
-                return query.OData().Filter(parameters.Filter).ToList();
-            }
-
-            return query.ToList();
+            return query;
         }
         
         // Todo:  Move to AccountManager
         private List<string> GetSharingParticipants(Account account) {
-            var participants = account.GetParticipants().Select(each => each.Id).ToList();
-            var groups = account.GetGroups();
-            var groupParticipants = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == "group" && groups.Contains(each.Id)).SelectMany(each => each.Participants).Select(each => each.Id).ToList();
 
-            participants.AddRange(groupParticipants);
+            var participants = account.GetParticipants().Select(each => each.Id).ToList();
+            var memberships = account.GetGroups();
+
+            var groups = Data.DefaultCollection.Get<CosmosDocument>()
+                .Where(each => each.Type == "group" && memberships.Contains(each.Id))
+                .Select(each => new {
+                    each.Participants,
+                    each.Owner
+                })
+                .ToList();
+
+            if(groups.Any()) {
+                var groupOwners = groups.Select(each => each.Owner).ToList();
+                var owners = Data.DefaultCollection.Get<Account>()
+                    .Where(each => each.Type == "account" && groupOwners.Contains(each.Id))
+                    .ToList();
+
+                foreach(var group in groups) {
+                    var owner = owners.FirstOrDefault(each => each.Id == group.Owner);
+
+                    if(owner != null) {
+                        participants.Add(owner.Id);
+
+                        if(owner.IsGroupLeader()) {
+
+                            if(owner.Id != account.Id) {
+                                continue;
+                            }
+                        }
+
+                        participants.AddRange(group.Participants.Select(each => each.Id));
+                    }
+                }
+            }
+
             return participants.Distinct().ToList();
         }
         

@@ -35,7 +35,7 @@ namespace Starship.WebCore.Controllers {
                 }*/
             });
         }
-
+        
         [Authorize]
         [Route("api/logout")]
         public async Task Logout() {
@@ -112,6 +112,12 @@ namespace Starship.WebCore.Controllers {
             
             return new JsonResult(new { account, settings, invitations }, Data.Settings.SerializerSettings);
         }
+
+        /*[Authorize]
+        [HttpPost, Route("api/email")]
+        public async Task RequestChangeEmail([FromBody] string email) {
+
+        }*/
 
         private readonly AzureCosmosDbProvider Data;
 

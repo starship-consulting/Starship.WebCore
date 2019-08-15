@@ -2,10 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp2.2</TargetFramework>
+    <LangVersion>7.1</LangVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Auth0.AuthenticationApi" Version="6.3.0" />
+    <PackageReference Include="Auth0.ManagementApi" Version="6.4.0" />
     <PackageReference Include="chargebee" Version="2.6.8" />
     <PackageReference Include="Community.OData.Linq" Version="1.4.2" />
     <PackageReference Include="ExcelDataReader" Version="3.4.2" />
@@ -13,10 +15,15 @@
     <PackageReference Include="MediaTypeMap.Core" Version="2.3.3" />
     <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.OData" Version="7.2.0" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.0.0" />
     <PackageReference Include="Microsoft.Azure.Storage.File" Version="9.4.2" />
+    <PackageReference Include="Microsoft.OData.Core" Version="7.6.0" />
+    <PackageReference Include="Microsoft.OData.Edm" Version="7.6.0" />
     <PackageReference Include="Postmark" Version="4.0.1" />
+    <PackageReference Include="RestSharp" Version="106.6.10" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta0006" />
+    <PackageReference Include="StringToExpression" Version="1.1.0" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="4.5.1" />
   </ItemGroup>
 

@@ -6,6 +6,7 @@ using ChargeBee.Api;
 using ChargeBee.Exceptions;
 using ChargeBee.Models;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
@@ -35,7 +36,7 @@ namespace Starship.WebCore.Providers.ChargeBee {
             
             var plan = string.Empty;
 
-            if(state.RedirectUri.Contains("?")) {
+            if(!state.RedirectUri.IsEmpty() && state.RedirectUri.Contains("?")) {
                 var query = HttpUtility.ParseQueryString(state.RedirectUri.Split("?").Last());
 
                 if(query.AllKeys.Any(key => key == "plan")) {
@@ -95,7 +96,6 @@ namespace Starship.WebCore.Providers.ChargeBee {
         public Subscription GetSubscription(Account account, string planId = "") {
             
             var chargebee = account.GetComponent<ChargeBeeComponent>();
-            //var customer = GetOrCreateCustomer(chargebee.ChargeBeeId, account.FirstName, account.LastName, account.Email);
 
             Customer customer = null;
 
@@ -108,8 +108,17 @@ namespace Starship.WebCore.Providers.ChargeBee {
             }
 
             if(customer == null) {
+                customer = CreateCustomer(account.FirstName, account.LastName, account.Email);
+            }
+
+            if(customer == null) {
                 chargebee.Clear(planId);
-                account.SetComponent(chargebee);
+                //account.SetComponent(chargebee);
+
+                account.Components = new Dictionary<string, object> {
+                    { "chargeBee", JsonConvert.DeserializeObject(JsonConvert.SerializeObject(chargebee)) }
+                };
+
                 return null;
             }
 
@@ -130,7 +139,12 @@ namespace Starship.WebCore.Providers.ChargeBee {
             }
             
             chargebee.ChargeBeeId = customer.Id;
-            account.SetComponent(chargebee);
+
+            account.Components = new Dictionary<string, object> {
+                { "chargeBee", JsonConvert.DeserializeObject(JsonConvert.SerializeObject(chargebee)) }
+            };
+
+            //account.SetComponent(chargebee);
 
             return subscription;
         }
@@ -262,7 +276,16 @@ namespace Starship.WebCore.Providers.ChargeBee {
             
             var planId = ResolvePlanId(plan);
 
-            var result = HostedPage.CheckoutNew()
+            var checkout = HostedPage.CheckoutNew();
+            var chargebee = account.GetComponent<ChargeBeeComponent>();
+
+            if(chargebee != null) {
+                if(!chargebee.ChargeBeeId.IsEmpty()) {
+                    checkout = checkout.CustomerId(chargebee.ChargeBeeId);
+                }
+            }
+
+            var result = checkout
                 .CustomerEmail(account.Email)
                 .CustomerFirstName(account.FirstName)
                 .CustomerLastName(account.LastName)
