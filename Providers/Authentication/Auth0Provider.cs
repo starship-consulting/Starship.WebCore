@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Auth0.AuthenticationApi;
 using Auth0.AuthenticationApi.Models;
 using Auth0.ManagementApi;
-using Auth0.ManagementApi.Models;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using RestSharp;
@@ -41,6 +40,10 @@ namespace Starship.WebCore.Providers.Authentication {
         private ManagementApiClient GetManagementClient() {
             var token = GetAccessToken();
             return new ManagementApiClient(token, Settings.Audience);
+        }
+
+        public void ChangeEmailAddress() {
+
         }
 
         public void ValidateEmail(string email) {

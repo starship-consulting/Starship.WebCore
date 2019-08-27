@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.Cosmos.Linq;
 using Starship.Azure.Data;
+using Starship.Azure.Extensions;
 using Starship.Core.Extensions;
 using Starship.WebCore.OData;
 
@@ -12,10 +12,10 @@ namespace Starship.WebCore.Models {
         public IQueryable<T> Apply<T>(IQueryable<T> query) where T : CosmosDocument {
             
             if(IncludeInvalidated == null) {
-                query = query.Where(each => !each.ValidUntil.IsDefined() || each.ValidUntil == null || each.ValidUntil > DateTime.UtcNow);
+                query = query.IsValid();
             }
             else {
-                query = query.Where(each => !each.ValidUntil.IsDefined() || each.ValidUntil == null || each.ValidUntil > IncludeInvalidated);
+                query = query.IsValid(IncludeInvalidated);
             }
 
             if(!Filter.IsEmpty()) {

@@ -24,6 +24,8 @@ using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
 using Starship.WebCore.Providers.ChargeBee;
 using Starship.WebCore.Providers.Postmark;
+using Starship.WebCore.Providers.Security;
+using Starship.WebCore.Providers.Twilio;
 
 // ReSharper disable once CheckNamespace
 namespace Microsoft.Extensions.DependencyInjection {
@@ -55,6 +57,13 @@ namespace Microsoft.Extensions.DependencyInjection {
             return provider;
         }
 
+        public static TwilioProvider UseTwilio(this IServiceCollection services, IConfiguration configuration) {
+            var settings = ConfigurationMapper.Map<TwilioSettings>(configuration);
+            var provider = new TwilioProvider(settings);
+            services.AddSingleton(provider);
+            return provider;
+        }
+
         public static void UseSmtp(this IServiceCollection services, IConfiguration configuration) {
             var settings = ConfigurationMapper.Map<SmtpSettings>(configuration);
 
@@ -62,6 +71,10 @@ namespace Microsoft.Extensions.DependencyInjection {
             client.DefaultFromAddress = settings.Username;
 
             services.AddSingleton(client);
+        }
+
+        public static void UseSecuritySettings(this IServiceCollection services, IConfiguration configuration) {
+            services.Configure<SecuritySettings>(ConfigurationMapper.GetSection<SecuritySettings>(configuration));
         }
 
         public static void UseAzureFileStorage(this IServiceCollection services, IConfiguration configuration) {

@@ -26,5 +26,9 @@ namespace Starship.WebCore.Providers.ChargeBee {
         List<Customer> GetCustomers();
 
         void DeleteCustomer(Customer customer);
+
+        void CancelSubscription(string subscriptionId);
+
+        void ChangeCustomerEmail(string oldEmail, string newEmail);
     }
 }

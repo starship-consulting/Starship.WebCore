@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Web;
 using ChargeBee.Api;
 using ChargeBee.Exceptions;
@@ -71,6 +72,10 @@ namespace Starship.WebCore.Providers.ChargeBee {
                 .ToList();
         }
 
+        public void CancelSubscription() {
+
+        }
+
         public void DeleteCustomer(Customer customer) {
             var subscriptions = GetSubscriptions(customer);
 
@@ -79,6 +84,22 @@ namespace Starship.WebCore.Providers.ChargeBee {
             }
 
             Customer.Delete(customer.Id).Request();
+        }
+
+        public void CancelSubscription(string subscriptionId) {
+            var result = Subscription.Cancel(subscriptionId).EndOfTerm(true).Request();
+
+            if(result.StatusCode != HttpStatusCode.OK) {
+                throw new Exception("Unexpected Chargebee http status: " + result.StatusCode);
+            }
+        }
+
+        public void ChangeCustomerEmail(string oldEmail, string newEmail) {
+            var customer = FindCustomerByEmail(oldEmail.ToLower());
+
+            if(customer != null) {
+                Customer.Update(customer.Id).Email(newEmail.ToLower());
+            }
         }
 
         public void ChangeSubscriptionPlan(Subscription subscription, string planId, bool immediate) {

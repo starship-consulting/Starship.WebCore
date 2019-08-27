@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
+using Starship.Azure.Extensions;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
 using Starship.Web.Security;
@@ -35,12 +36,22 @@ namespace Starship.WebCore.Providers.Authentication {
         }
 
         public Account GetAccountByEmail(string email) {
+
             email = email.ToLower();
-            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Email.ToLower() == email).ToList().FirstOrDefault();
+
+            return Data.DefaultCollection.Get<Account>()
+                .Where(each => each.Type == "account" && each.Email.ToLower() == email)
+                .IsValid()
+                .ToList()
+                .FirstOrDefault();
         }
 
         public Account GetAccountById(string id) {
-            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.Id == id).ToList().FirstOrDefault();
+            return Data.DefaultCollection.Get<Account>()
+                .Where(each => each.Type == "account" && each.Id == id)
+                .IsValid()
+                .ToList()
+                .FirstOrDefault();
         }
 
         public Account GetAccount(ClaimsPrincipal principal) {
@@ -53,13 +64,13 @@ namespace Starship.WebCore.Providers.Authentication {
 
         public UserProfile GetUserProfile() {
 
-            var profile = Context.User.GetUserProfile();
+            var profile = HttpContext.User.GetUserProfile();
             
-            if(Context.Session != null && Context.Session.Keys.Contains(UserImpersonationKey)) {
+            if(HttpContext.Session != null && HttpContext.Session.Keys.Contains(UserImpersonationKey)) {
                 var account = GetAccount(profile);
 
                 if(account != null && account.IsAdmin()) {
-                    var impersonate = Context.Session.GetString(UserImpersonationKey);
+                    var impersonate = HttpContext.Session.GetString(UserImpersonationKey);
                     profile = new UserProfile(impersonate);
                 }
             }
@@ -121,6 +132,8 @@ namespace Starship.WebCore.Providers.Authentication {
 
             state.Account.LastLogin = DateTime.UtcNow;
 
+            throw new Exception("stop");
+
             AccountLoggedIn?.Invoke(state);
 
             var account = Data.DefaultCollection.Save(state.Account);
@@ -132,7 +145,7 @@ namespace Starship.WebCore.Providers.Authentication {
 
         public List<IsClientSettingsProvider> ClientSettingsProviders;
 
-        private HttpContext Context => ContextAccessor.HttpContext;
+        private HttpContext HttpContext => ContextAccessor.HttpContext;
 
         private readonly AzureCosmosDbProvider Data;
 

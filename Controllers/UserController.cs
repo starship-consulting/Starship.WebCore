@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using ChargeBee.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -74,6 +75,32 @@ namespace Starship.WebCore.Controllers {
             var accessToken = User.Claims.FirstOrDefault(c => c.Type == "access_token")?.Value;
             return await Authentication.GetUserInfoAsync(accessToken);
         }*/
+
+        [Authorize]
+        [Route("api/deleteuser")]
+        public async Task<IActionResult> DeleteUser() {
+
+            if(User == null || User.Identity == null || !User.Identity.IsAuthenticated) {
+                return Ok(new UserProfile());
+            }
+            
+            var account = Accounts.GetAccount();
+
+            if(Billing != null) {
+                var subscription = Billing.GetSubscription(account);
+
+                if(subscription != null && subscription.Status == Subscription.StatusEnum.Active) {
+                    Billing.CancelSubscription(subscription.Id);
+                }
+            }
+            
+            account.ValidUntil = DateTime.UtcNow;
+            await Data.DefaultCollection.SaveAsync(account);
+
+            await Logout();
+
+            return RedirectToAction("Index", "Home");
+        }
         
         [Authorize]
         [Route("api/user")]
@@ -112,12 +139,6 @@ namespace Starship.WebCore.Controllers {
             
             return new JsonResult(new { account, settings, invitations }, Data.Settings.SerializerSettings);
         }
-
-        /*[Authorize]
-        [HttpPost, Route("api/email")]
-        public async Task RequestChangeEmail([FromBody] string email) {
-
-        }*/
 
         private readonly AzureCosmosDbProvider Data;
 
