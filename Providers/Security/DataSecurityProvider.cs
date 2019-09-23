@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
-using Starship.WebCore.Interfaces;
+using Starship.Core.Security;
+using Starship.Data.Entities;
+using Starship.Data.Interfaces;
 
 namespace Starship.WebCore.Providers.Security {
 
@@ -14,14 +16,14 @@ namespace Starship.WebCore.Providers.Security {
             Data = data;
         }
 
-        public async Task Delete(Account account, CosmosDocument document) {
+        public async Task Delete(IsSecurityContext context, DocumentEntity document) {
 
             if(document.Type == "group") {
                 var existingMembers = GetAccounts().Where(each => each.Groups.Contains(document.Id)).ToList();
 
-                if(!existingMembers.Any(each => each.Id == account.Id)) {
-                    existingMembers.Add(account);
-                    account.RemoveGroup(document.Id);
+                if(!existingMembers.Any(each => each.Id == context.Id)) {
+                    existingMembers.Add(context);
+                    context.RemoveGroup(document.Id);
                 }
 
                 foreach(var member in existingMembers) {
@@ -34,22 +36,22 @@ namespace Starship.WebCore.Providers.Security {
             }
         }
 
-        public async Task Save(Account account, CosmosDocument document) {
+        public async Task Save(IsSecurityContext context, DocumentEntity document) {
 
             if(document.Type == "group") {
                 var participants = document.Participants.Select(each => each.Id).ToList();
                 var existingMembers = GetAccounts().Where(each => each.Groups.Contains(document.Id)).ToList();
                 var newMembers = GetAccounts().Where(each => participants.Contains(each.Id)).ToList();
 
-                if(!newMembers.Any(each => each.Id == account.Id)) {
-                    newMembers.Add(account);
+                if(!newMembers.Any(each => each.Id == context.Id)) {
+                    newMembers.Add(context);
                 }
                 
-                var changeset = new List<CosmosDocument>();
+                var changeset = new List<IsSecurityContext>();
 
                 foreach(var member in existingMembers) {
 
-                    if(member.Id == account.Id) {
+                    if(member.Id == context.Id) {
                         continue;
                     }
 
@@ -72,7 +74,7 @@ namespace Starship.WebCore.Providers.Security {
             }
         }
 
-        private IQueryable<Account> GetAccounts() {
+        private IQueryable<IsSecurityContext> GetAccounts() {
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account");
         }
 

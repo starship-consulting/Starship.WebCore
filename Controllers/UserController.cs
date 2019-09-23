@@ -81,7 +81,7 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> DeleteUser() {
 
             if(User == null || User.Identity == null || !User.Identity.IsAuthenticated) {
-                return Ok(new UserProfile());
+                return Ok();
             }
             
             var account = Accounts.GetAccount();
@@ -89,7 +89,7 @@ namespace Starship.WebCore.Controllers {
             if(Billing != null) {
                 var subscription = Billing.GetSubscription(account);
 
-                if(subscription != null && subscription.Status == Subscription.StatusEnum.Active) {
+                if(subscription != null /*&& subscription.Status == Subscription.StatusEnum.Active*/) {
                     Billing.CancelSubscription(subscription.Id);
                 }
             }
@@ -99,7 +99,8 @@ namespace Starship.WebCore.Controllers {
 
             await Logout();
 
-            return RedirectToAction("Index", "Home");
+            //return RedirectToAction("Index", "Home");
+            return Ok();
         }
         
         [Authorize]

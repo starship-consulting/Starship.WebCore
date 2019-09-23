@@ -8,6 +8,7 @@ using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Data;
 using Starship.Core.Email;
+using Starship.Data.Entities;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Providers.Authentication;
 
@@ -54,7 +55,7 @@ namespace Starship.WebCore.Controllers {
                     account.AddParticipant(id);
                     otherAccount.AddParticipant(account.Id);
 
-                    var changeset = new List<CosmosResource> { account, otherAccount };
+                    var changeset = new List<DocumentEntity> { account, otherAccount };
                     await Data.DefaultCollection.CallProcedure(Data.Settings.SaveProcedureName, changeset);
 
                     await Data.DefaultCollection.DeleteAsync(existing.Id);
@@ -65,12 +66,15 @@ namespace Starship.WebCore.Controllers {
         }
 
         [HttpDelete, Route("api/access/{idOrEmail}")]
-        public async Task<IActionResult> RejectAccess([FromRoute] string idOrEmail) {
+        public async Task<IActionResult> DeleteAccess([FromRoute] string idOrEmail) {
 
             idOrEmail = idOrEmail.ToLower();
 
             var sourceAccount = Users.GetAccount();
             var targetAccount = Users.GetAccountByEmail(idOrEmail) ?? Users.GetAccountById(idOrEmail);
+
+            var sourceParticipants = sourceAccount.GetParticipants();
+            var targetParticipants = targetAccount.GetParticipants();
 
             if(targetAccount != null) {
                 await DeleteInvitation(targetAccount, sourceAccount.Email);

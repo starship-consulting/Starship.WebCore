@@ -13,14 +13,13 @@ using Newtonsoft.Json;
 using Starship.Azure.Data;
 using Starship.Azure.Json;
 using Starship.Azure.Providers.Cosmos;
-using Starship.Core.Data;
 using Starship.Core.Extensions;
 using Starship.Core.Security;
 using Starship.Data.Configuration;
+using Starship.Data.Entities;
+using Starship.Data.Interfaces;
 using Starship.WebCore.ActionFilters;
-using Starship.WebCore.Configuration;
 using Starship.WebCore.Extensions;
-using Starship.WebCore.Interfaces;
 using Starship.WebCore.Models;
 using Starship.WebCore.Providers.Authentication;
 
@@ -33,24 +32,7 @@ namespace Starship.WebCore.Controllers {
             Users = serviceProvider.GetRequiredService<AccountManager>();
             Data = serviceProvider.GetRequiredService<AzureCosmosDbProvider>();
             Interceptor = serviceProvider.GetService<IsDataInterceptor>();
-            Settings = serviceProvider.GetService<SiteSettings>();
         }
-        
-        /*[HttpGet, Route("api/log")]
-        public async Task<IActionResult> Log() {
-            return Ok(await Provider.GetLog(DateTime.UtcNow.Subtract(TimeSpan.FromDays(3))));
-        }*/
-
-        /*[HttpGet, Route("api/test")]
-        public async Task<IActionResult> Test() {
-
-            var test = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == "google-oauth2|106287561953926890758").ToList().FirstOrDefault();
-            test.Owner = "test";
-
-            await Data.DefaultCollection.SaveAsync(test);
-
-            return null;
-        }*/
 
         [HttpGet, Route("api/cleardata")]
         public async Task ClearData() {
@@ -82,14 +64,6 @@ namespace Starship.WebCore.Controllers {
             var results = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Owner == account.Id).Select(each => each.Type).Distinct().ToList();
             return Ok(results);
         }
-
-        /*[HttpGet, Route("api/procs/{procedure}")]
-        public IActionResult GetProcedure([FromRoute] string procedure, [FromQuery] ExpandoObject parameters) {
-            var account = GetAccount();
-            var query = Data.DefaultCollection.CallProcedure<CosmosDocument>(procedure, parameters);
-            //var query = GetData(account, type, parameters);
-            return query.ToArray().ToJsonResult(Data.Settings.SerializerSettings);
-        }*/
         
         [HttpGet, Route("api/data/{types}")]
         public async Task<object> Get([FromRoute] string types, [FromQuery] DataQueryParameters parameters) {
@@ -109,7 +83,7 @@ namespace Starship.WebCore.Controllers {
             foreach(var type in typeList) {
                 
                 var task = Task.Factory.StartNew(()=> {
-                    var query = GetData(account, type);
+                    var query = parameters.Apply(GetData(account, type));
                     var items = query.ToList();
                     results.AddOrUpdate(type, items, (updateType, updateItems) => updateItems);
                 });
@@ -180,7 +154,7 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Save([FromBody] ExpandoObject[] entities) {
 
             var account = GetAccount();
-            var resources = new List<CosmosResource>();
+            var resources = new List<DocumentEntity>();
 
             foreach(var entity in entities) {
                 var document = TryUpdateResource(account, entity);
@@ -196,7 +170,7 @@ namespace Starship.WebCore.Controllers {
                 resources.Add(document);
             }
 
-            var result = await Data.DefaultCollection.CallProcedure<List<CosmosResource>>(Data.Settings.SaveProcedureName, resources);
+            var result = await Data.DefaultCollection.CallProcedure<List<DocumentEntity>>(Data.Settings.SaveProcedureName, resources);
             return result.ToJsonResult(Data.Settings.SerializerSettings);
         }
 
@@ -328,7 +302,7 @@ namespace Starship.WebCore.Controllers {
                         || contact.Participants.Any(participant => participant.Id == account.Id));
                 }
                 else if(type == "group") {
-                    query = query.Where(group => group.Owner == account.Id || group.Participants.Any(participant => participant.Id == account.Id));
+                    query = query.Where(group => (group.Owner == account.Id || group.Participants.Any(participant => participant.Id == account.Id)));
                 }
                 else {
                     query = query.Where(each => claims.Contains(each.Owner) || each.Permissions.Any(permission => permission.Subject == account.Id && participants.Contains(each.Owner)));
@@ -346,10 +320,7 @@ namespace Starship.WebCore.Controllers {
 
             var groups = Data.DefaultCollection.Get<CosmosDocument>()
                 .Where(each => each.Type == "group" && memberships.Contains(each.Id))
-                .Select(each => new {
-                    each.Participants,
-                    each.Owner
-                })
+                .IsValid()
                 .ToList();
 
             if(groups.Any()) {
@@ -382,13 +353,11 @@ namespace Starship.WebCore.Controllers {
         private Account GetAccount() {
             return Users.GetAccount();
         }
-        
-        private readonly IsDataInterceptor Interceptor;
 
         private readonly AzureCosmosDbProvider Data;
 
         private readonly AccountManager Users;
 
-        private readonly SiteSettings Settings;
+        private readonly IsDataInterceptor Interceptor;
     }
 }

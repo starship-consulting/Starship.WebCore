@@ -12,18 +12,18 @@ namespace Starship.WebCore.Providers.Twilio {
             TwilioClient.Init(Settings.SID, Settings.AuthToken);
         }
 
-        public async Task SendTextMessageAsync(string message, string fromNumber, string toNumber) {
+        public async Task SendTextMessageAsync(string message, string toNumber) {
             await MessageResource.CreateAsync(
                 body: message,
-                from: new PhoneNumber(fromNumber), // phone number format example: "+15017122661"
+                from: new PhoneNumber(Settings.PhoneNumber),
                 to: new PhoneNumber(toNumber)
             );
         }
 
-        public void SendTextMessage(string message, string fromNumber, string toNumber) {
+        public void SendTextMessage(string message, string toNumber) {
             MessageResource.Create(
                 body: message,
-                from: new PhoneNumber(fromNumber),
+                from: new PhoneNumber(Settings.PhoneNumber),
                 to: new PhoneNumber(toNumber)
             );
         }

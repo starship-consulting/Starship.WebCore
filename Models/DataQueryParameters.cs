@@ -2,7 +2,6 @@
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Starship.Azure.Data;
-using Starship.Azure.Extensions;
 using Starship.Core.Extensions;
 using Starship.WebCore.OData;
 

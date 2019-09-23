@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
-using Starship.Core.Data;
+using Starship.Data.Entities;
 
 namespace Starship.WebCore.Extensions {
     public static class CosmosDbExtensions {
         
-        public static IActionResult ToJsonResult(this CosmosResource resource, JsonSerializerSettings settings) {
-            var data = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(resource));
+        public static IActionResult ToJsonResult(this DocumentEntity document, JsonSerializerSettings settings) {
+            var data = JsonConvert.DeserializeObject<Dictionary<string, object>>(JsonConvert.SerializeObject(document));
             return new JsonResult(data, settings);
         }
 

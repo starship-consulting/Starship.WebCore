@@ -5,16 +5,16 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
-using Starship.Azure.Extensions;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
+using Starship.Core.Security;
 using Starship.Web.Security;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Extensions;
 using Starship.WebCore.Interfaces;
 
 namespace Starship.WebCore.Providers.Authentication {
-    public class AccountManager : IDisposable {
+    public class AccountManager : SecurityContextProvider, IDisposable {
         
         public AccountManager(IServiceProvider provider) {
             Data = provider.GetService<AzureCosmosDbProvider>();
@@ -105,9 +105,12 @@ namespace Starship.WebCore.Providers.Authentication {
             state.Account = GetAccount(state.Principal);
                 
             if(state.Account == null) {
+
+                var id = Guid.NewGuid().ToString();
+
                 state.Account = new Account {
-                    Id = profile.Id,
-                    Owner = profile.Id,
+                    Id = id,
+                    Owner = id,
                     Email = profile.Email,
                     Photo = profile.Photo
                 };
@@ -131,9 +134,7 @@ namespace Starship.WebCore.Providers.Authentication {
             }
 
             state.Account.LastLogin = DateTime.UtcNow;
-
-            throw new Exception("stop");
-
+            
             AccountLoggedIn?.Invoke(state);
 
             var account = Data.DefaultCollection.Save(state.Account);

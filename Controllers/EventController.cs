@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Dynamic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -32,7 +33,8 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             
             var events = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Source.Type == parameters.Type && eventNames.Contains(each.Name) && each.ValidUntil == null);
+                .Where(each => each.Type == "event" && each.Source.Type == parameters.Type && eventNames.Contains(each.Name))
+                .IsValid();
 
             /*var claims = account.GetClaims();
 
@@ -84,6 +86,17 @@ namespace Starship.WebCore.Controllers {
             .ToArray()
             .ToJsonResult(Data.Settings.SerializerSettings);
         }
+
+        /*[HttpPost, Route("api/events")]
+        public async Task<IActionResult> Save([FromBody] ExpandoObject entity) {
+
+            var account = GetAccount();
+            var document = TryUpdateResource(account, entity, type);
+
+            if(document == null || !account.CanUpdate(document, GetSharingParticipants(account))) {
+                return StatusCode(404);
+            }
+        }*/
         
         [HttpGet, Route("api/events/{id}")]
         public IActionResult GetEvents([FromRoute] string id, [FromQuery] EventQueryParameters parameters) {
@@ -96,7 +109,8 @@ namespace Starship.WebCore.Controllers {
             }
             
             var events = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Source.Id == id && each.ValidUntil == null)
+                .Where(each => each.Type == "event" && each.Source.Id == id)
+                .IsValid()
                 .Select(each => new {
                     id = each.Id,
                     creationDate = each.CreationDate,
@@ -120,7 +134,8 @@ namespace Starship.WebCore.Controllers {
             }
 
             var result = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Name == eventName && each.Source.Id == id && each.ValidUntil == null)
+                .Where(each => each.Type == "event" && each.Name == eventName && each.Source.Id == id)
+                .IsValid()
                 .OrderByDescending(each => each.CreationDate)
                 .Take(1)
                 .ToList()
@@ -134,19 +149,25 @@ namespace Starship.WebCore.Controllers {
         }
 
         private IQueryable<Account> GetAccounts() {
-            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account" && each.ValidUntil == null);
+            return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account").IsValid();
         }
 
         // Todo:  Move to AccountManager
         private List<string> GetSharingParticipants(Account account) {
             var participants = account.GetParticipants().Select(each => each.Id).ToList();
             var groups = account.GetGroups();
-            var groupParticipants = Data.DefaultCollection.Get<CosmosDocument>().Where(each => each.Type == "group" && groups.Contains(each.Id) && each.ValidUntil == null).SelectMany(each => each.Participants).Select(each => each.Id).ToList();
+
+            var groupParticipants = Data.DefaultCollection.Get<CosmosDocument>()
+                .Where(each => each.Type == "group" && groups.Contains(each.Id))
+                .IsValid()
+                .SelectMany(each => each.Participants)
+                .Select(each => each.Id)
+                .ToList();
 
             participants.AddRange(groupParticipants);
             return participants.Distinct().ToList();
         }
-
+        
         private readonly AzureCosmosDbProvider Data;
 
         private readonly AccountManager Users;

@@ -52,9 +52,7 @@ namespace Starship.WebCore.Controllers {
             if(otherAccount != null) {
                 return BadRequest("An account with that email already exists.");
             }
-
-            // Todo:  Check if email already exists in Auth0
-
+            
             var token = Guid.NewGuid().ToString().Split("-").First().ToUpper();
             account.ChangeEmail = Hash.EncryptStringAES(email, token, SecuritySettings.Salt);
             await Data.DefaultCollection.SaveAsync(account);
@@ -75,7 +73,7 @@ namespace Starship.WebCore.Controllers {
             }
 
             // Todo:  Merge accounts / change Chargebee email
-            // Todo:  Create Auth0 account if it doesn't exist
+            // Todo:  Create Auth0 account if it doesn't exist?
 
             try {
                 var email = Hash.DecryptStringAES(account.ChangeEmail, token, SecuritySettings.Salt);
