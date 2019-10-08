@@ -132,15 +132,17 @@ namespace Starship.WebCore.Controllers {
             invitation.AddParticipant(email, account.GetName());
 
             await Data.DefaultCollection.SaveAsync(invitation);
+
+            var otherAccount = Users.GetAccountByEmail(email);
             
-            /*if(SiteSettings.IsProduction()) {
+            if(otherAccount == null && SiteSettings.IsProduction()) {
 
                 var body = DataSettings.InvitationEmailBody
                     .Replace("{{url}}", SiteSettings.Url)
                     .Replace("{{name}}", account.GetName());
 
                 await EmailClient.SendAsync(string.Empty, email, DataSettings.InvitationEmailSubject, body);
-            }*/
+            }
 
             return Ok(true);
         }

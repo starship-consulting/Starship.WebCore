@@ -1,12 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using ChargeBee.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
 using Starship.WebCore.Providers.ChargeBee;
 
@@ -44,7 +43,7 @@ namespace Starship.WebCore.Controllers {
             return new JsonResult(plans, Data.Settings.SerializerSettings);
         }
 
-        [Authorize, HttpGet, Route("api/billing/subscriptions")]
+        /*[Authorize, HttpGet, Route("api/billing/subscriptions")]
         public IActionResult GetSubscriptions() {
 
             var plans = Billing.GetPlans();
@@ -86,20 +85,12 @@ namespace Starship.WebCore.Controllers {
                 .ToList();
 
             return Ok(subscriptions);
-        }
+        }*/
 
         [Authorize, HttpGet, Route("api/billing/portal")]
         public IActionResult GetPortalSessionToken() {
-
             var account = Users.GetAccount();
             var chargebee = account.GetComponent<ChargeBeeComponent>();
-
-            //var subscriber = Billing.GetSubscription(account);
-
-            //await Data.DefaultCollection.SaveAsync(account);
-
-            //var session = Billing.GetSessionToken(subscriber.CustomerId);
-
             return Ok(Billing.GetSessionToken(chargebee.ChargeBeeId));
         }
 
@@ -108,27 +99,7 @@ namespace Starship.WebCore.Controllers {
             var account = Users.GetAccount();
             return Ok(Billing.GetCheckoutToken(account, plan));
         }
-
-        private void DeleteDuplicates() {
-            
-            var customers = Billing.GetCustomers();
-
-            var deletedCustomers = new List<Customer>();
-            var currentCustomers = new List<Customer>();
-            
-            foreach(var customer in customers.OrderByDescending(each => each.CreatedAt)) {
-                if(currentCustomers.Any(each => each.Email.ToLower() == customer.Email.ToLower())) {
-                    deletedCustomers.Add(customer);
-                }
-
-                currentCustomers.Add(customer);
-            }
-
-            foreach(var eachCustomer in deletedCustomers) {
-                Billing.DeleteCustomer(eachCustomer);
-            }
-        }
-
+        
         private readonly AzureCosmosDbProvider Data;
         
         private readonly IsBillingProvider Billing;

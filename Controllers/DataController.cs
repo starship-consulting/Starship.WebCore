@@ -3,21 +3,19 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
 using Starship.Azure.Data;
-using Starship.Azure.Json;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Extensions;
 using Starship.Core.Security;
 using Starship.Data.Configuration;
 using Starship.Data.Entities;
 using Starship.Data.Interfaces;
+using Starship.Data.Utilities;
 using Starship.WebCore.ActionFilters;
 using Starship.WebCore.Extensions;
 using Starship.WebCore.Models;
@@ -154,7 +152,7 @@ namespace Starship.WebCore.Controllers {
         public async Task<IActionResult> Save([FromBody] ExpandoObject[] entities) {
 
             var account = GetAccount();
-            var resources = new List<DocumentEntity>();
+            var documents = new List<CosmosDocument>();
 
             foreach(var entity in entities) {
                 var document = TryUpdateResource(account, entity);
@@ -166,12 +164,33 @@ namespace Starship.WebCore.Controllers {
                 if(document.Owner.IsEmpty()) {
                     document.Owner = account.Id;
                 }
-                
-                resources.Add(document);
-            }
 
-            var result = await Data.DefaultCollection.CallProcedure<List<DocumentEntity>>(Data.Settings.SaveProcedureName, resources);
-            return result.ToJsonResult(Data.Settings.SerializerSettings);
+                documents.Add(document);
+            }
+            
+            var results = await SaveAsync(account, documents.ToArray());
+            return results.ToJsonResult(Data.Settings.SerializerSettings);
+        }
+        
+        private async Task<List<DocumentEntity>> SaveAsync(IsSecurityContext context, params DocumentEntity[] documents) {
+
+            var changeset = new DocumentChangeset();
+
+            if(Interceptor == null) {
+                changeset.AddRange(documents);
+            }
+            else {
+                foreach(var document in documents) {
+                    
+                    if(changeset.Any(changedDocument => changedDocument.Id == document.Id && changedDocument.Type == document.Type)) {
+                        continue;
+                    }
+
+                    changeset.AddRange(await Interceptor.Save(context, document));
+                }
+            }
+            
+            return await Data.DefaultCollection.CallProcedure<List<DocumentEntity>>(Data.Settings.SaveProcedureName, changeset);
         }
 
         [HttpPost, Route("api/data/{type}")]
@@ -188,81 +207,49 @@ namespace Starship.WebCore.Controllers {
                 document.Owner = account.Owner;
             }
 
-            if(Interceptor != null) {
-                await Interceptor.Save(account, document);
-            }
-            
-            var result = await Data.DefaultCollection.SaveAsync(document);
-            return result.ToJsonResult(Data.Settings.SerializerSettings);
+            var results = await SaveAsync(account, document);
+            return results.First().ToJsonResult(Data.Settings.SerializerSettings);
         }
         
         private CosmosDocument TryUpdateResource(Account account, ExpandoObject source, string defaultType = "") {
-
-            var settings = new JsonSerializerSettings {
-                ContractResolver = new DocumentContractResolver()
-            };
             
-            var serialized = JsonConvert.SerializeObject(source, settings);
-            var model = JsonConvert.DeserializeObject<CosmosDocument>(serialized);
-            
-            //using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(serialized)))  {
-                //var model = JsonSerializable.LoadFrom<CosmosDocument>(stream);
-
-                if(model.Type.IsEmpty()) {
-                    model.Type = defaultType;
-                }
+            var model = CosmosDocument.From(source, defaultType);
                 
-                if(model.Type == null) {
-                    throw new Exception("Unset entity type.");
-                }
+            if(!model.Id.IsEmpty()) {
 
-                model.Type = model.Type.ToLower();
-                
-                if(!model.Id.IsEmpty()) {
+                var entity = Data.DefaultCollection.Get<CosmosDocument>()
+                    .Where(each => model.Id == each.Id && model.Type == each.Type)
+                    .ToList()
+                    .FirstOrDefault();
 
-                    var entity = Data.DefaultCollection.Get<CosmosDocument>()
-                        .Where(each => model.Id == each.Id && model.Type == each.Type)
-                        .ToList()
-                        .FirstOrDefault();
-
-                    if(entity != null) {
+                if(entity != null) {
                         
-                        if(!account.CanUpdate(entity, GetSharingParticipants(account))) {
-                            return null;
-                        }
-
-                        PropertyInfo[] properties = model.Type == "account" ? typeof(Account).GetProperties() : typeof(CosmosDocument).GetProperties();
-
-                        var editableProperties = source
-                            .Where(each => !properties.Any(property => property.Name.ToLower() == each.Key.ToLower() && property.HasAttribute<SecureAttribute>()))
-                            .ToList();
-
-                        foreach(var property in editableProperties) {
-                            entity.Set(property.Key, property.Value);
-                        }
-                            
-                        entity.UpdatedBy = account.Id;
-                        return entity;
+                    if(!account.CanUpdate(entity, GetSharingParticipants(account))) {
+                        return null;
                     }
+
+                    entity.Apply(account, source, model.Type);
+                    
+                    return entity;
                 }
+            }
 
-                // Todo:  Prevent editing secure fields?
-                model.UpdatedBy = account.Id;
+            // Todo:  Prevent editing secure fields?
+            model.UpdatedBy = account.Id;
 
-                if(model.Owner.IsEmpty()) {
+            if(model.Owner.IsEmpty()) {
+                model.Owner = account.Id;
+            }
+            else if(!account.IsAdmin()) {
+
+                var participants = GetSharingParticipants(account);
+
+                if(!participants.Contains(model.Owner)) {
                     model.Owner = account.Id;
                 }
-                else if(!account.IsAdmin()) {
+            }
 
-                    var participants = GetSharingParticipants(account);
-
-                    if(!participants.Contains(model.Owner)) {
-                        model.Owner = account.Id;
-                    }
-                }
-
-                return model;
-            //}
+            return model;
         }
         
         private IQueryable<CosmosDocument> GetData(Account account, string type) {

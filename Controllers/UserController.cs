@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using ChargeBee.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -12,9 +11,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
 using Starship.Web.Security;
+using Starship.WebCore.Interfaces;
 using Starship.WebCore.Models;
 using Starship.WebCore.Providers.Authentication;
-using Starship.WebCore.Providers.ChargeBee;
 
 namespace Starship.WebCore.Controllers {
 

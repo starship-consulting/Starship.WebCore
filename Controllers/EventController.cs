@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Dynamic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -25,16 +24,20 @@ namespace Starship.WebCore.Controllers {
         [HttpGet, Route("api/events")]
         public IActionResult GetEvents([FromQuery] EventQueryParameters parameters) {
 
-            if(parameters == null || parameters.Type.IsEmpty() || parameters.Name.IsEmpty()) {
+            if(parameters == null || parameters.Type.IsEmpty()) {
                 return BadRequest();
             }
             
-            var eventNames = parameters.Name.Split(',').ToArray();
             var account = Users.GetAccount();
             
-            var events = Data.DefaultCollection.Get<CosmosEvent>()
-                .Where(each => each.Type == "event" && each.Source.Type == parameters.Type && eventNames.Contains(each.Name))
-                .IsValid();
+            var events = Data.DefaultCollection.Get<CosmosEvent>().Where(each => each.Type == "event" && each.Source.Type == parameters.Type);
+
+            if(!string.IsNullOrEmpty(parameters.Name)) {
+                var eventNames = parameters.Name.Split(',').ToArray();
+                events = events.Where(each => eventNames.Contains(each.Name));
+            }
+
+            events = events.IsValid();
 
             /*var claims = account.GetClaims();
 
@@ -70,17 +73,18 @@ namespace Starship.WebCore.Controllers {
 
             if(!parameters.StartDate.IsEmpty()) {
                 var startDate = DateTime.Parse(parameters.StartDate);
-                events = events.Where(each => each.Parameters.Date >= startDate);
+                events = events.Where(each => each.CreationDate >= startDate);
             }
 
             if(!parameters.EndDate.IsEmpty()) {
                 var endDate = DateTime.Parse(parameters.EndDate);
-                events = events.Where(each => each.Parameters.Date < endDate);
+                events = events.Where(each => each.CreationDate < endDate);
             }
             
             return events.Select(each => new {
                 parameters = each.Parameters,
                 name = each.Name,
+                date = each.CreationDate,
                 source = each.Source.Id
             })
             .ToArray()

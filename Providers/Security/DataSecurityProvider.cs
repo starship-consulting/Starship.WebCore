@@ -7,6 +7,7 @@ using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Security;
 using Starship.Data.Entities;
 using Starship.Data.Interfaces;
+using Starship.Data.Utilities;
 
 namespace Starship.WebCore.Providers.Security {
 
@@ -22,7 +23,7 @@ namespace Starship.WebCore.Providers.Security {
                 var existingMembers = GetAccounts().Where(each => each.Groups.Contains(document.Id)).ToList();
 
                 if(!existingMembers.Any(each => each.Id == context.Id)) {
-                    existingMembers.Add(context);
+                    existingMembers.Add(context as Account);
                     context.RemoveGroup(document.Id);
                 }
 
@@ -36,7 +37,9 @@ namespace Starship.WebCore.Providers.Security {
             }
         }
 
-        public async Task Save(IsSecurityContext context, DocumentEntity document) {
+        public async Task<DocumentChangeset> Save(IsSecurityContext context, DocumentEntity document) {
+
+            var changeset = new DocumentChangeset { document };
 
             if(document.Type == "group") {
                 var participants = document.Participants.Select(each => each.Id).ToList();
@@ -44,10 +47,10 @@ namespace Starship.WebCore.Providers.Security {
                 var newMembers = GetAccounts().Where(each => participants.Contains(each.Id)).ToList();
 
                 if(!newMembers.Any(each => each.Id == context.Id)) {
-                    newMembers.Add(context);
+                    newMembers.Add(context as Account);
                 }
                 
-                var changeset = new List<IsSecurityContext>();
+                //var changeset = new List<IsSecurityContext>();
 
                 foreach(var member in existingMembers) {
 
@@ -67,14 +70,12 @@ namespace Starship.WebCore.Providers.Security {
                         changeset.Add(member);
                     }
                 }
-
-                if(changeset.Any()) {
-                    await Data.DefaultCollection.CallProcedure(Data.Settings.SaveProcedureName, changeset);
-                }
             }
+
+            return changeset;
         }
 
-        private IQueryable<IsSecurityContext> GetAccounts() {
+        private IQueryable<Account> GetAccounts() {
             return Data.DefaultCollection.Get<Account>().Where(each => each.Type == "account");
         }
 
