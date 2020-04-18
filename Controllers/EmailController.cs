@@ -11,6 +11,7 @@ using Starship.Core.Email;
 using Starship.Core.Extensions;
 using Starship.Core.Security;
 using Starship.Core.Validation;
+using Starship.Integration.Billing;
 using Starship.WebCore.Configuration;
 using Starship.WebCore.Interfaces;
 using Starship.WebCore.Providers.Authentication;
@@ -30,7 +31,7 @@ namespace Starship.WebCore.Controllers {
             SecuritySettings = securitySettings.CurrentValue;
             EmailClient = services.GetService<EmailClient>();
             SiteSettings = services.GetService<SiteSettings>();
-            Billing = services.GetService<IsBillingProvider>();
+            Billing = services.GetService<IsSubscriptionProvider>();
         }
 
         [Authorize]
@@ -71,8 +72,7 @@ namespace Starship.WebCore.Controllers {
             if(string.IsNullOrEmpty(account.ChangeEmail)) {
                 return BadRequest("Email already changed.");
             }
-
-            // Todo:  Merge accounts / change Chargebee email
+            
             // Todo:  Create Auth0 account if it doesn't exist?
 
             try {
@@ -85,7 +85,7 @@ namespace Starship.WebCore.Controllers {
 
                 if(Billing != null) {
                     try {
-                        Billing.ChangeCustomerEmail(account.Email, email);
+                        await Billing.ChangeCustomerEmailAsync(account.Email, email);
                     }
                     catch {
                     }
@@ -151,6 +151,6 @@ namespace Starship.WebCore.Controllers {
 
         private readonly SiteSettings SiteSettings;
 
-        private readonly IsBillingProvider Billing;
+        private readonly IsSubscriptionProvider Billing;
     }
 }

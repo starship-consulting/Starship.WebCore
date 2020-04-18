@@ -8,10 +8,11 @@ using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json;
 using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
+using Starship.Integration.Billing;
 using Starship.Web.Security;
-using Starship.WebCore.Interfaces;
 using Starship.WebCore.Models;
 using Starship.WebCore.Providers.Authentication;
 
@@ -21,7 +22,7 @@ namespace Starship.WebCore.Controllers {
 
         public UserController(IServiceProvider serviceProvider) {
             Accounts = serviceProvider.GetRequiredService<AccountManager>();
-            Billing = serviceProvider.GetService<IsBillingProvider>();
+            Billing = serviceProvider.GetService<IsSubscriptionProvider>();
             Data = serviceProvider.GetRequiredService<AzureCosmosDbProvider>();
         }
 
@@ -86,11 +87,8 @@ namespace Starship.WebCore.Controllers {
             var account = Accounts.GetAccount();
 
             if(Billing != null) {
-                var subscription = Billing.GetSubscription(account);
-
-                if(subscription != null /*&& subscription.Status == Subscription.StatusEnum.Active*/) {
-                    Billing.CancelSubscription(subscription.Id);
-                }
+                var details = account.Get<SubscriptionDetails>("subscription");
+                await Billing.CancelSubscriptionAsync(details.SubscriptionId);
             }
             
             account.ValidUntil = DateTime.UtcNow;
@@ -112,10 +110,15 @@ namespace Starship.WebCore.Controllers {
             
             var account = Accounts.GetAccount();
             
-            if(Billing != null) {
-                Billing.GetSubscription(account);
+            /*if(Billing != null) {
+                var details = Billing.GetSubscription(account);
+
+                account.Components = new Dictionary<string, object> {
+                    { "billing", JsonConvert.DeserializeObject(JsonConvert.SerializeObject(details)) }
+                };
+
                 await Data.DefaultCollection.SaveAsync(account);
-            }
+            }*/
 
             var settings = Accounts.GetSettings();
 
@@ -142,7 +145,7 @@ namespace Starship.WebCore.Controllers {
 
         private readonly AzureCosmosDbProvider Data;
 
-        private readonly IsBillingProvider Billing;
+        private readonly IsSubscriptionProvider Billing;
 
         private readonly AccountManager Accounts;
     }

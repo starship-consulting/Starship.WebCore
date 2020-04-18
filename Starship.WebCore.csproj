@@ -20,6 +20,7 @@
     <PackageReference Include="Microsoft.Azure.Storage.File" Version="9.4.2" />
     <PackageReference Include="Microsoft.OData.Core" Version="7.6.0" />
     <PackageReference Include="Microsoft.OData.Edm" Version="7.6.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
     <PackageReference Include="Postmark" Version="4.0.1" />
     <PackageReference Include="RestSharp" Version="106.6.10" />
     <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta0006" />
@@ -29,8 +30,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Starship.Azure\Starship.Azure.csproj" />
     <ProjectReference Include="..\Starship.Core\Starship.Core.csproj" />
+    <ProjectReference Include="..\Starship.Integration\Starship.Integration.csproj" />
     <ProjectReference Include="..\Starship.Web\Starship.Web.csproj" />
   </ItemGroup>
 

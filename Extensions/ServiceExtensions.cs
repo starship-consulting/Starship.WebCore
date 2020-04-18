@@ -17,6 +17,7 @@ using Starship.Azure.Providers.Cosmos;
 using Starship.Core.Email;
 using Starship.Core.Storage;
 using Starship.Data.Configuration;
+using Starship.Integration.Billing;
 using Starship.Web.Services;
 using Starship.WebCore.Azure;
 using Starship.WebCore.Configuration;
@@ -26,6 +27,7 @@ using Starship.WebCore.Providers.ChargeBee;
 using Starship.WebCore.Providers.Postmark;
 using Starship.WebCore.Providers.Security;
 using Starship.WebCore.Providers.Twilio;
+using Starship.WebCore.Providers.Zoho;
 
 // ReSharper disable once CheckNamespace
 namespace Microsoft.Extensions.DependencyInjection {
@@ -227,6 +229,11 @@ namespace Microsoft.Extensions.DependencyInjection {
         public static void UseChargeBee(this IServiceCollection services, IConfiguration configuration) {
             services.Configure<ChargeBeeSettings>(ConfigurationMapper.GetSection<ChargeBeeSettings>(configuration));
             services.AddSingleton<IsBillingProvider, ChargeBeeProvider>();
+        }
+
+        public static void UseZohoSubscriptions(this IServiceCollection services, IConfiguration configuration) {
+            services.Configure<ZohoSubscriptionsSettings>(ConfigurationMapper.GetSection<ZohoSubscriptionsSettings>(configuration));
+            services.AddSingleton<IsSubscriptionProvider, ZohoSubscriptionsProvider>();
         }
 
         public static PostmarkProvider UsePostmark(this IServiceCollection services, IConfiguration configuration) {

@@ -1,26 +1,40 @@
 ﻿using System;
-using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Starship.Azure.Data;
 using Starship.Azure.Providers.Cosmos;
-using Starship.WebCore.Interfaces;
+using Starship.Integration.Billing;
 using Starship.WebCore.Providers.Authentication;
-using Starship.WebCore.Providers.ChargeBee;
 
 namespace Starship.WebCore.Controllers {
     
     public class BillingController : ApiController {
 
-        public BillingController(IsBillingProvider billing, AccountManager users, AzureCosmosDbProvider data) {
+        public BillingController(IsSubscriptionProvider billing, AccountManager users, AzureCosmosDbProvider data) {
             Billing = billing;
             Users = users;
             Data = data;
         }
 
+        [HttpGet, Route("api/billing")]
+        public async Task<IActionResult> Get() {
+
+            var account = Users.GetAccount();
+            var subscription = account.Get<SubscriptionDetails>("subscription");
+            
+
+            if(string.IsNullOrEmpty(subscription.SubscriptionId)) {
+                return Ok(subscription);
+            }
+
+            await Billing.GetSubscriptionAsync(subscription.SubscriptionId);
+
+            return Ok();
+        }
+
         [HttpPost, Route("api/billing")]
         public async Task<IActionResult> Post() {
+
+
             return Ok();
         }
 
@@ -29,7 +43,7 @@ namespace Starship.WebCore.Controllers {
             return Ok();
         }
         
-        [Authorize, HttpGet, Route("api/billing/plans")]
+        /*[Authorize, HttpGet, Route("api/billing/plans")]
         public IActionResult Plans() {
             
             var plans = Billing.GetPlans().Select(each => new {
@@ -41,7 +55,7 @@ namespace Starship.WebCore.Controllers {
             });
 
             return new JsonResult(plans, Data.Settings.SerializerSettings);
-        }
+        }*/
 
         /*[Authorize, HttpGet, Route("api/billing/subscriptions")]
         public IActionResult GetSubscriptions() {
@@ -87,22 +101,22 @@ namespace Starship.WebCore.Controllers {
             return Ok(subscriptions);
         }*/
 
-        [Authorize, HttpGet, Route("api/billing/portal")]
+        /*[Authorize, HttpGet, Route("api/billing/portal")]
         public IActionResult GetPortalSessionToken() {
             var account = Users.GetAccount();
-            var chargebee = account.GetComponent<ChargeBeeComponent>();
-            return Ok(Billing.GetSessionToken(chargebee.ChargeBeeId));
-        }
+            var billingDetails = account.GetComponent<SubscriptionDetails>();
+            return Ok(Billing.GetSessionToken(billingDetails.Id));
+        }*/
 
-        [Authorize, HttpGet, Route("api/billing/checkout")]
+        /*[Authorize, HttpGet, Route("api/billing/checkout")]
         public IActionResult Checkout([FromQuery] string plan) {
             var account = Users.GetAccount();
             return Ok(Billing.GetCheckoutToken(account, plan));
-        }
+        }*/
         
         private readonly AzureCosmosDbProvider Data;
         
-        private readonly IsBillingProvider Billing;
+        private readonly IsSubscriptionProvider Billing;
 
         private readonly AccountManager Users;
     }
