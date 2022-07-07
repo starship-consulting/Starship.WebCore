@@ -13,7 +13,7 @@
     <PackageReference Include="ExcelDataReader" Version="3.4.2" />
     <PackageReference Include="ExcelDataReader.DataSet" Version="3.4.2" />
     <PackageReference Include="MediaTypeMap.Core" Version="2.3.3" />
-    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.0" />
+    <PackageReference Include="Microsoft.AspNetCore.App" Version="2.2.6" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="2.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.OData" Version="7.2.0" />
     <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.0.0" />
